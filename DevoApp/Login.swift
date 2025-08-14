@@ -1,10 +1,18 @@
 import SwiftUI
 
 struct LoginView: View {
+    // Login
     @State private var email: String = ""
     @State private var password: String = ""
     @State private var showPassword = false
     
+    // Modo registro (campos extras)
+    @State private var isSignUp = false
+    @State private var firstName: String = ""
+    @State private var lastName: String = ""
+    @State private var confirmPassword: String = ""
+    @State private var showConfirmPassword = false
+
     var body: some View {
         ScrollView {
             VStack(spacing: 20) {
@@ -20,30 +28,51 @@ struct LoginView: View {
                     .frame(height: 200)
                     .padding(.top, 8)
                 
-                Text("Inicia sesión")
+                // Título cambia según modo
+                Text(isSignUp ? "Crea tu cuenta" : "Inicia sesión")
                     .font(.system(size: 24, weight: .semibold))
                     .foregroundStyle(Color.primaryText)
                     .padding(.top, 4)
                 
-                // Email
+                // Campos
                 VStack(spacing: 12) {
+                    // NUEVO: Nombre / Apellido solo en registro
+                    if isSignUp {
+                        AppTextField(
+                            text: $firstName,
+                            placeholder: "Nombre"
+                        )
+                        AppTextField(
+                            text: $lastName,
+                            placeholder: "Apellido"
+                        )
+                    }
+                    
                     AppTextField(
                         text: $email,
                         placeholder: "Ingresa Tu Email",
                         keyboard: .emailAddress
                     )
                     
-                    // Password con mostrar/ocultar
                     PasswordField(
                         password: $password,
                         showPassword: $showPassword,
                         placeholder: "Contraseña"
                     )
+                    
+                    // NUEVO: Confirmar contraseña solo en registro
+                    if isSignUp {
+                        PasswordField(
+                            password: $confirmPassword,
+                            showPassword: $showConfirmPassword,
+                            placeholder: "Confirmar contraseña"
+                        )
+                    }
                 }
                 .padding(.horizontal, 24)
                 .padding(.top, 6)
                 
-                // ---- Divider con texto
+                // ---- Divider con textos
                 DividerWithText(text: "Continuar con")
                     .padding(.horizontal, 24)
                     .padding(.top, 6)
@@ -60,7 +89,7 @@ struct LoginView: View {
                 }
                 .padding(.horizontal, 24)
                 
-                // Botón Google (borde gris)
+                // Botón Google
                 SocialButton(
                     title: "Login with Google",
                     background: .clear,
@@ -72,12 +101,14 @@ struct LoginView: View {
                 }
                 .padding(.horizontal, 24)
                 
-                // Registro
+                // Registro / Toggle de modo
                 HStack(spacing: 6) {
                     Text("¿No tienes cuenta?")
                         .foregroundStyle(Color.secondaryText)
-                    Button("Regístrate") {
-                        // TODO: navegar a registro
+                    
+                    Button(isSignUp ? "Login" : "Regístrate") {
+                        // Cambia entre login y registro en la misma pantalla
+                        withAnimation { isSignUp.toggle() }
                     }
                     .fontWeight(.semibold)
                     .foregroundStyle(Color.accentBrand)
@@ -209,7 +240,7 @@ private struct SocialButton: View {
     }
 }
 
-// Tema
+// Tema 
 
 private extension Color {
     static let screenBG      = Color.white
