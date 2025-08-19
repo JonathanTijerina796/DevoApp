@@ -1,0 +1,34 @@
+/* 
+  Localizable.strings (English)
+  DevoApp
+*/
+
+// General
+"hello_world" = "Hello, world!";
+
+// Authentication
+"create_account" = "Create your account";
+"sign_in" = "Sign in";
+"first_name" = "First name";
+"last_name" = "Last name";
+"enter_email" = "Enter your email";
+"password" = "Password";
+"confirm_password" = "Confirm password";
+"or_continue_with" = "Or continue with";
+"login_facebook" = "Login with Facebook";
+"login_google" = "Login with Google";
+"no_account" = "Don't have an account?";
+"login" = "Login";
+"sign_up" = "Sign up";
+
+// Error messages
+"all_fields_required" = "All fields are required";
+"invalid_email" = "Invalid email address";
+"password_min_length" = "Password must be at least 6 characters";
+"email_password_required" = "Email and password are required";
+"google_config_error" = "Google configuration error";
+"view_controller_error" = "Error getting view controller";
+"google_token_error" = "Error getting Google token";
+"login_cancelled" = "Login cancelled";
+"facebook_token_error" = "Error getting Facebook token";
+"passwords_dont_match" = "Passwords don't match";
