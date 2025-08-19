@@ -1,6 +1,9 @@
 import SwiftUI
+import FirebaseAuth
 
 struct LoginView: View {
+    @EnvironmentObject var authManager: AuthenticationManager
+    
     // Login
     @State private var email: String = ""
     @State private var password: String = ""
@@ -12,6 +15,7 @@ struct LoginView: View {
     @State private var lastName: String = ""
     @State private var confirmPassword: String = ""
     @State private var showConfirmPassword = false
+    @State private var showAlert = false
 
     var body: some View {
         ScrollView {
@@ -29,7 +33,7 @@ struct LoginView: View {
                     .padding(.top, 8)
                 
                 // Título cambia según modo
-                Text(isSignUp ? "Crea tu cuenta" : "Inicia sesión")
+                Text(isSignUp ? NSLocalizedString("create_account", comment: "") : NSLocalizedString("sign_in", comment: ""))
                     .font(.system(size: 24, weight: .semibold))
                     .foregroundStyle(Color.primaryText)
                     .padding(.top, 4)
@@ -40,24 +44,24 @@ struct LoginView: View {
                     if isSignUp {
                         AppTextField(
                             text: $firstName,
-                            placeholder: "Nombre"
+                            placeholder: NSLocalizedString("first_name", comment: "")
                         )
                         AppTextField(
                             text: $lastName,
-                            placeholder: "Apellido"
+                            placeholder: NSLocalizedString("last_name", comment: "")
                         )
                     }
                     
                     AppTextField(
                         text: $email,
-                        placeholder: "Ingresa Tu Email",
+                        placeholder: NSLocalizedString("enter_email", comment: ""),
                         keyboard: .emailAddress
                     )
                     
                     PasswordField(
                         password: $password,
                         showPassword: $showPassword,
-                        placeholder: "Contraseña"
+                        placeholder: NSLocalizedString("password", comment: "")
                     )
                     
                     // NUEVO: Confirmar contraseña solo en registro
@@ -65,48 +69,89 @@ struct LoginView: View {
                         PasswordField(
                             password: $confirmPassword,
                             showPassword: $showConfirmPassword,
-                            placeholder: "Confirmar contraseña"
+                            placeholder: NSLocalizedString("confirm_password", comment: "")
                         )
                     }
                 }
                 .padding(.horizontal, 24)
                 .padding(.top, 6)
                 
+                // Botón principal de acción
+                Button {
+                    Task {
+                        if isSignUp {
+                            await handleSignUp()
+                        } else {
+                            await handleSignIn()
+                        }
+                    }
+                } label: {
+                    HStack {
+                        if authManager.isLoading {
+                            ProgressView()
+                                .scaleEffect(0.8)
+                                .tint(.white)
+                        }
+                        Text(isSignUp ? NSLocalizedString("create_account", comment: "") : NSLocalizedString("sign_in", comment: ""))
+                            .font(.headline)
+                            .foregroundColor(.white)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 52)
+                    .background(Color.accentBrand)
+                    .cornerRadius(12)
+                }
+                .disabled(authManager.isLoading)
+                .padding(.horizontal, 24)
+                .padding(.top, 16)
+                
                 // ---- Divider con textos
-                DividerWithText(text: "Continuar con")
-                    .padding(.horizontal, 24)
-                    .padding(.top, 6)
+                DividerWithText(text: NSLocalizedString("or_continue_with", comment: ""))
+                    .padding(.horizontal, 15)
+                    .padding(.top, 16)
                 
                 // Botón Facebook
                 SocialButton(
-                    title: "Login with Facebook",
+                    title: NSLocalizedString("login_facebook", comment: ""),
                     background: Color.facebookBlue,
                     foreground: .white,
                     borderOnly: false,
                     icon: Image("facebook")
                 ) {
-                    // TODO: acción Facebook
+                    Task {
+                        await authManager.signInWithFacebook()
+                        if !authManager.errorMessage.isEmpty {
+                            showAlert = true
+                        }
+                    }
                 }
+                .disabled(authManager.isLoading)
                 .padding(.horizontal, 24)
                 
                 // Botón Google
                 SocialButton(
-                    title: "Login with Google",
+                    title: NSLocalizedString("login_google", comment: ""),
                     background: .clear,
                     foreground: Color.primaryText,
                     borderOnly: true,
                     icon: Image("Google")
                 ) {
-                    // TODO: acción Google
+                    Task {
+                        await authManager.signInWithGoogle()
+                        if !authManager.errorMessage.isEmpty {
+                            showAlert = true
+                        }
+                    }
                 }
+                .disabled(authManager.isLoading)
                 .padding(.horizontal, 24)
                 
                 // Registro / Toggle de modo
                 HStack(spacing: 6) {
-                    Text("¿No tienes cuenta?")
+                    Text(NSLocalizedString("no_account", comment: ""))
                         .foregroundStyle(Color.secondaryText)
                     
-                    Button(isSignUp ? "Login" : "Regístrate") {
+                    Button(isSignUp ? NSLocalizedString("login", comment: "") : NSLocalizedString("sign_up", comment: "")) {
                         // Cambia entre login y registro en la misma pantalla
                         withAnimation { isSignUp.toggle() }
                     }
@@ -119,10 +164,46 @@ struct LoginView: View {
             .frame(maxWidth: .infinity, alignment: .center)
         }
         .background(Color.screenBG.ignoresSafeArea())
+        .alert("Error", isPresented: $showAlert) {
+            Button("OK") { 
+                authManager.errorMessage = ""
+            }
+        } message: {
+            Text(authManager.errorMessage)
+        }
+    }
+    
+    // MARK: - Authentication Methods
+    
+    private func handleSignUp() async {
+        guard password == confirmPassword else {
+            authManager.errorMessage = NSLocalizedString("passwords_dont_match", comment: "")
+            showAlert = true
+            return
+        }
+        
+        let success = await authManager.signUp(
+            email: email,
+            password: password,
+            firstName: firstName,
+            lastName: lastName
+        )
+        
+        if !success {
+            showAlert = true
+        }
+    }
+    
+    private func handleSignIn() async {
+        let success = await authManager.signIn(email: email, password: password)
+        
+        if !success {
+            showAlert = true
+        }
     }
 }
 
-// MARK: - Subviews
+ //Subviews
 
 private struct AppTextField: View {
     @Binding var text: String
@@ -137,7 +218,7 @@ private struct AppTextField: View {
             .padding(.horizontal, 16)
             .frame(height: 48)
             .background(
-                RoundedRectangle(cornerRadius: 12)
+                RoundedRectangle(cornerRadius:12)
                     .stroke(Color.inputBorder, lineWidth: 1)
                     .background(RoundedRectangle(cornerRadius: 12).fill(Color.inputBG))
             )
@@ -175,7 +256,7 @@ private struct PasswordField: View {
         .padding(.horizontal, 16)
         .frame(height: 48)
         .background(
-            RoundedRectangle(cornerRadius: 12)
+            RoundedRectangle(cornerRadius:12)
                 .stroke(Color.inputBorder, lineWidth: 1)
                 .background(RoundedRectangle(cornerRadius: 12).fill(Color.inputBG))
         )
@@ -255,6 +336,41 @@ private extension Color {
 
 // MARK: - Preview
 
+#if DEBUG
+// Mock AuthenticationManager para Preview (sin Firebase)
+class MockAuthenticationManager: ObservableObject {
+    @Published var user: User? = nil
+    @Published var isSignedIn = false
+    @Published var isLoading = false
+    @Published var errorMessage = ""
+    
+    func signUp(email: String, password: String, firstName: String, lastName: String) async -> Bool {
+        print("🎨 Preview Mock - SignUp called")
+        return true
+    }
+    
+    func signIn(email: String, password: String) async -> Bool {
+        print("🎨 Preview Mock - SignIn called")
+        return true
+    }
+    
+    func signInWithGoogle() async -> Bool {
+        print("🎨 Preview Mock - Google SignIn called")
+        return true
+    }
+    
+    func signInWithFacebook() async -> Bool {
+        print("🎨 Preview Mock - Facebook SignIn called")
+        return true
+    }
+    
+    func signOut() {
+        print("🎨 Preview Mock - SignOut called")
+    }
+}
+#endif
+
 #Preview {
     LoginView()
+        .environmentObject(MockAuthenticationManager())
 }
