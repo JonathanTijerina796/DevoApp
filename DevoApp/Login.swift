@@ -205,7 +205,7 @@ struct LoginView: View {
 
  //Subviews
 
-private struct AppTextField: View {
+struct AppTextField: View {
     @Binding var text: String
     let placeholder: String
     var keyboard: UIKeyboardType = .default
@@ -323,7 +323,7 @@ private struct SocialButton: View {
 
 // Tema 
 
-private extension Color {
+extension Color {
     static let screenBG      = Color.white
     static let primaryText   = Color.black.opacity(0.85)
     static let secondaryText = Color.black.opacity(0.55)

@@ -32,3 +32,33 @@
 "login_cancelled" = "Login cancelado";
 "facebook_token_error" = "Error al obtener token de Facebook";
 "passwords_dont_match" = "Las contraseñas no coinciden";
+
+// Team Selection
+"find_your_team" = "Encuentra tu equipo";
+"find_team_subtitle" = "Selecciona si eres líder o integrante para continuar";
+"i_am_leader" = "Soy líder";
+"leader_description" = "Crea y gestiona tu equipo de devocionales";
+"i_am_member" = "Soy integrante";
+"member_description" = "Únete a un equipo existente con un código";
+"register_as_leader" = "Registrarse como líder";
+"register_leader_description" = "Crea un nuevo equipo y gestiona los devocionales de tus integrantes";
+"team_name" = "Nombre del equipo";
+"enter_team_name" = "Ingresa el nombre del equipo";
+"register_team" = "Registrar equipo";
+"join_team" = "Unirse a un equipo";
+"join_team_description" = "Ingresa el código que te proporcionó el líder de tu equipo";
+"team_code" = "Código del equipo";
+"enter_team_code" = "Ingresa el código del equipo";
+"join_team_button" = "Unirse al equipo";
+"team_name_required" = "El nombre del equipo es requerido";
+"team_code_required" = "El código del equipo es requerido";
+"cancel" = "Cancelar";
+"user_not_authenticated" = "Usuario no autenticado";
+"team_not_found" = "No se encontró un equipo con ese código";
+"already_team_leader" = "Ya eres el líder de este equipo";
+"already_team_member" = "Ya eres miembro de este equipo";
+"team_created_success" = "¡Equipo creado!";
+"team_created_message" = "Tu equipo ha sido creado exitosamente.\n\nCódigo del equipo: {code}\n\nComparte este código con los integrantes para que se unan a tu equipo.";
+"team_joined_success" = "¡Te uniste al equipo!";
+"team_joined_message" = "Te has unido exitosamente al equipo: {name}";
+"continue" = "Continuar";
