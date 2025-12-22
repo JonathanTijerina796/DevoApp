@@ -26,7 +26,8 @@ struct ContentView: View {
                 }
             } else {
                 if authManager.isSignedIn {
-                    MainAppView()
+                    TeamSelectionView()
+                        .environmentObject(authManager)
                 } else {
                     LoginView()
                         .environmentObject(authManager)
