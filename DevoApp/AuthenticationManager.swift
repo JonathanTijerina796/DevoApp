@@ -11,12 +11,20 @@ class AuthenticationManager: ObservableObject {
     @Published var isLoading = false
     @Published var errorMessage = ""
     
+    private var authStateListenerHandle: AuthStateDidChangeListenerHandle?
+    
     init() {
         listenToAuthState()
     }
     
+    deinit {
+        if let handle = authStateListenerHandle {
+            Auth.auth().removeStateDidChangeListener(handle)
+        }
+    }
+    
     private func listenToAuthState() {
-        Auth.auth().addStateDidChangeListener { [weak self] _, user in
+        authStateListenerHandle = Auth.auth().addStateDidChangeListener { [weak self] _, user in
             Task { @MainActor in
                 self?.user = user
                 self?.isSignedIn = user != nil

@@ -43,10 +43,9 @@ class TeamManager: ObservableObject {
             // Guardar en Firestore
             let docRef = try await db.collection(teamsCollection).addDocument(from: team)
             
-            // Actualizar el equipo con el ID generado
+            // Actualizar el equipo local con el ID generado
             var updatedTeam = team
             updatedTeam.id = docRef.documentID
-            try await docRef.setData(from: updatedTeam, merge: false)
             
             // Guardar referencia del equipo en el perfil del usuario
             try await db.collection("users").document(user.uid).setData([
