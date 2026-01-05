@@ -119,8 +119,8 @@ struct LoginView: View {
                     icon: Image("facebook")
                 ) {
                     Task {
-                        await authManager.signInWithFacebook()
-                        if !authManager.errorMessage.isEmpty {
+                        let success = await authManager.signInWithFacebook()
+                        if !success || !authManager.errorMessage.isEmpty {
                             showAlert = true
                         }
                     }
@@ -137,8 +137,8 @@ struct LoginView: View {
                     icon: Image("Google")
                 ) {
                     Task {
-                        await authManager.signInWithGoogle()
-                        if !authManager.errorMessage.isEmpty {
+                        let success = await authManager.signInWithGoogle()
+                        if !success || !authManager.errorMessage.isEmpty {
                             showAlert = true
                         }
                     }
