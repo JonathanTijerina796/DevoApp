@@ -62,3 +62,44 @@
 "team_joined_success" = "Joined team!";
 "team_joined_message" = "You have successfully joined the team: {name}";
 "continue" = "Continue";
+
+// Main Team View
+"my_team" = "My Team";
+"code" = "Code";
+"share_team_code" = "Share Team Code";
+"view_members" = "View Members";
+"welcome_to_team" = "Welcome to the team!";
+"you_are_member_of" = "You are a member of";
+"share_code_title" = "Share Code";
+"copy_code" = "Copy Code";
+"share_code" = "Share";
+"done" = "Done";
+"code_copied" = "Code Copied";
+"code_copied_message" = "The team code has been copied to clipboard";
+"join_my_team" = "Join my team";
+"team_members" = "Team Members";
+"leader" = "Leader";
+"member" = "Member";
+"no_members_yet" = "No members yet in the team";
+"remove_member" = "Remove Member";
+"remove" = "Remove";
+"remove_member_confirmation" = "Are you sure you want to remove";
+"team_id_missing" = "Team ID not found";
+"only_leader_can_remove" = "Only the leader can remove members";
+"member_not_in_team" = "Member is not in the team";
+
+// Profile View
+"profile" = "Profile";
+"user" = "User";
+"role" = "Role";
+"member_since" = "Member since";
+"sign_out" = "Sign Out";
+"sign_out_confirmation" = "Are you sure you want to sign out?";
+
+// Home View
+"home" = "Home";
+"welcome_back" = "Welcome back!";
+"quick_actions" = "Quick Actions";
+"view_team" = "View Team";
+"no_team_yet" = "You don't have a team yet";
+"join_or_create_team" = "Join an existing team or create a new one";
