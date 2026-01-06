@@ -62,3 +62,44 @@
 "team_joined_success" = "¡Te uniste al equipo!";
 "team_joined_message" = "Te has unido exitosamente al equipo: {name}";
 "continue" = "Continuar";
+
+// Main Team View
+"my_team" = "Mi Equipo";
+"code" = "Código";
+"share_team_code" = "Compartir Código del Equipo";
+"view_members" = "Ver Miembros";
+"welcome_to_team" = "¡Bienvenido al equipo!";
+"you_are_member_of" = "Eres miembro de";
+"share_code_title" = "Compartir Código";
+"copy_code" = "Copiar Código";
+"share_code" = "Compartir";
+"done" = "Hecho";
+"code_copied" = "Código Copiado";
+"code_copied_message" = "El código del equipo ha sido copiado al portapapeles";
+"join_my_team" = "Únete a mi equipo";
+"team_members" = "Miembros del Equipo";
+"leader" = "Líder";
+"member" = "Miembro";
+"no_members_yet" = "Aún no hay miembros en el equipo";
+"remove_member" = "Eliminar Miembro";
+"remove" = "Eliminar";
+"remove_member_confirmation" = "¿Estás seguro de que deseas eliminar a";
+"team_id_missing" = "ID del equipo no encontrado";
+"only_leader_can_remove" = "Solo el líder puede eliminar miembros";
+"member_not_in_team" = "El miembro no está en el equipo";
+
+// Profile View
+"profile" = "Perfil";
+"user" = "Usuario";
+"role" = "Rol";
+"member_since" = "Miembro desde";
+"sign_out" = "Cerrar Sesión";
+"sign_out_confirmation" = "¿Estás seguro de que deseas cerrar sesión?";
+
+// Home View
+"home" = "Inicio";
+"welcome_back" = "¡Bienvenido de vuelta!";
+"quick_actions" = "Acciones Rápidas";
+"view_team" = "Ver Equipo";
+"no_team_yet" = "Aún no tienes un equipo";
+"join_or_create_team" = "Únete a un equipo existente o crea uno nuevo";

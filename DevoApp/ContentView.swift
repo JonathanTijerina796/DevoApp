@@ -10,6 +10,7 @@ import FirebaseAuth
 
 struct ContentView: View {
     @EnvironmentObject var authManager: AuthenticationManager
+    @StateObject private var teamManager = TeamManager()
     @State private var showSplash = true
     
     // 🚨 DEBUG: Cambiar a true para saltar splash temporalmente
@@ -26,8 +27,21 @@ struct ContentView: View {
                 }
             } else {
                 if authManager.isSignedIn {
-                    TeamSelectionView()
-                        .environmentObject(authManager)
+                    // Si tiene equipo, mostrar página de inicio
+                    if teamManager.currentTeam != nil {
+                        HomeView()
+                            .environmentObject(authManager)
+                            .environmentObject(teamManager)
+                    } else {
+                        // Si no tiene equipo, mostrar selección
+                        TeamSelectionView()
+                            .environmentObject(authManager)
+                            .onAppear {
+                                Task {
+                                    await teamManager.loadCurrentUserTeam()
+                                }
+                            }
+                    }
                 } else {
                     LoginView()
                         .environmentObject(authManager)
@@ -40,6 +54,37 @@ struct ContentView: View {
             // Skip splash in debug mode
             if debugSkipSplash {
                 showSplash = false
+            }
+            
+            // Cargar equipo cuando el usuario está autenticado
+            if authManager.isSignedIn {
+                Task {
+                    await teamManager.loadCurrentUserTeam()
+                }
+            }
+        }
+        .onChange(of: authManager.isSignedIn) { oldValue, newValue in
+            if newValue {
+                Task {
+                    await teamManager.loadCurrentUserTeam()
+                }
+            } else {
+                teamManager.currentTeam = nil
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("TeamCreated"))) { _ in
+            Task {
+                await teamManager.loadCurrentUserTeam()
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("TeamJoined"))) { _ in
+            Task {
+                await teamManager.loadCurrentUserTeam()
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("TeamUpdated"))) { _ in
+            Task {
+                await teamManager.loadCurrentUserTeam()
             }
         }
     }

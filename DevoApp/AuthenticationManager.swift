@@ -1,6 +1,7 @@
 import Foundation
 import FirebaseAuth
 import FirebaseCore
+import FirebaseFirestore
 import GoogleSignIn
 // import FBSDKLoginKit // Temporalmente deshabilitado
 
@@ -61,6 +62,16 @@ class AuthenticationManager: ObservableObject {
             changeRequest.displayName = "\(firstName) \(lastName)"
             try await changeRequest.commitChanges()
             
+            // Guardar información del usuario en Firestore
+            try await Firestore.firestore().collection("users").document(result.user.uid).setData([
+                "email": email,
+                "displayName": "\(firstName) \(lastName)",
+                "firstName": firstName,
+                "lastName": lastName,
+                "createdAt": Timestamp(),
+                "updatedAt": Timestamp()
+            ], merge: true)
+            
             isLoading = false
             return true
         } catch {
@@ -80,7 +91,15 @@ class AuthenticationManager: ObservableObject {
         errorMessage = ""
         
         do {
-            try await Auth.auth().signIn(withEmail: email, password: password)
+            let result = try await Auth.auth().signIn(withEmail: email, password: password)
+            
+            // Actualizar información del usuario en Firestore si no existe
+            try await Firestore.firestore().collection("users").document(result.user.uid).setData([
+                "email": email,
+                "displayName": result.user.displayName ?? email,
+                "updatedAt": Timestamp()
+            ], merge: true)
+            
             isLoading = false
             return true
         } catch {
@@ -124,7 +143,16 @@ class AuthenticationManager: ObservableObject {
                 accessToken: result.user.accessToken.tokenString
             )
             
-            try await Auth.auth().signIn(with: credential)
+            let authResult = try await Auth.auth().signIn(with: credential)
+            
+            // Guardar información del usuario en Firestore
+            let user = authResult.user
+            try await Firestore.firestore().collection("users").document(user.uid).setData([
+                "email": user.email ?? "",
+                "displayName": user.displayName ?? user.email ?? "",
+                "updatedAt": Timestamp()
+            ], merge: true)
+            
             isLoading = false
             return true
         } catch {

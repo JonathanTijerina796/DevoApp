@@ -224,6 +224,10 @@ struct LeaderRegistrationView: View {
             } message: {
                 Text(NSLocalizedString("team_created_message", comment: "").replacingOccurrences(of: "{code}", with: createdTeamCode))
             }
+            .onDisappear {
+                // Notificar cuando se cierra la vista para recargar
+                NotificationCenter.default.post(name: NSNotification.Name("TeamUpdated"), object: nil)
+            }
         }
     }
     
@@ -243,6 +247,8 @@ struct LeaderRegistrationView: View {
         ) {
             createdTeamCode = team.code
             showSuccessAlert = true
+            // Notificar que se creó el equipo (la vista se actualizará automáticamente)
+            NotificationCenter.default.post(name: NSNotification.Name("TeamCreated"), object: nil)
         } else {
             alertMessage = teamManager.errorMessage
             showAlert = true
@@ -354,6 +360,10 @@ struct MemberRegistrationView: View {
                     Text(NSLocalizedString("team_joined_message", comment: "").replacingOccurrences(of: "{name}", with: team.name))
                 }
             }
+            .onDisappear {
+                // Notificar cuando se cierra la vista para recargar
+                NotificationCenter.default.post(name: NSNotification.Name("TeamUpdated"), object: nil)
+            }
         }
     }
     
@@ -362,6 +372,8 @@ struct MemberRegistrationView: View {
         
         if success {
             showSuccessAlert = true
+            // Notificar que se unió al equipo
+            NotificationCenter.default.post(name: NSNotification.Name("TeamJoined"), object: nil)
         } else {
             alertMessage = teamManager.errorMessage
             showAlert = true

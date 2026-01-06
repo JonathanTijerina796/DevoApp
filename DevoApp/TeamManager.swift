@@ -177,6 +177,70 @@ class TeamManager: ObservableObject {
         }
     }
     
+    // MARK: - Remove Member
+    
+    func removeMember(memberId: String, fromTeam team: Team) async {
+        guard let teamId = team.id else {
+            errorMessage = NSLocalizedString("team_id_missing", comment: "")
+            return
+        }
+        
+        guard let user = Auth.auth().currentUser else {
+            errorMessage = NSLocalizedString("user_not_authenticated", comment: "")
+            return
+        }
+        
+        // Verificar que el usuario es el líder
+        guard team.leaderId == user.uid else {
+            errorMessage = NSLocalizedString("only_leader_can_remove", comment: "")
+            return
+        }
+        
+        // Verificar que el miembro existe en el equipo
+        guard team.memberIds.contains(memberId) else {
+            errorMessage = NSLocalizedString("member_not_in_team", comment: "")
+            return
+        }
+        
+        isLoading = true
+        errorMessage = ""
+        
+        do {
+            // Remover miembro del equipo
+            var updatedMemberIds = team.memberIds
+            updatedMemberIds.removeAll { $0 == memberId }
+            
+            try await db.collection(teamsCollection).document(teamId).updateData([
+                "memberIds": updatedMemberIds,
+                "updatedAt": Timestamp()
+            ])
+            
+            // Remover referencia del equipo en el perfil del usuario
+            try await db.collection("users").document(memberId).updateData([
+                "teamId": FieldValue.delete(),
+                "role": FieldValue.delete()
+            ])
+            
+            // Actualizar el equipo local
+            var updatedTeam = team
+            updatedTeam.memberIds = updatedMemberIds
+            updatedTeam.updatedAt = Timestamp()
+            currentTeam = updatedTeam
+            
+            isLoading = false
+            
+        } catch {
+            isLoading = false
+            errorMessage = error.localizedDescription
+        }
+    }
+    
+    // MARK: - Refresh Team
+    
+    func refreshTeam() async {
+        await loadCurrentUserTeam()
+    }
+    
     // MARK: - Generate Unique Team Code
     
     private func generateUniqueTeamCode() async throws -> String {
