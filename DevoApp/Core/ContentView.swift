@@ -27,9 +27,9 @@ struct ContentView: View {
                 }
             } else {
                 if authManager.isSignedIn {
-                    // Si tiene equipo, mostrar página de inicio
+                    // Si tiene equipo, mostrar TabBar con Home y Perfil
                     if teamManager.currentTeam != nil {
-                        HomeView()
+                        MainTabView()
                             .environmentObject(authManager)
                             .environmentObject(teamManager)
                     } else {

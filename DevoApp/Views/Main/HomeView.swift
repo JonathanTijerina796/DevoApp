@@ -4,7 +4,6 @@ import FirebaseAuth
 struct HomeView: View {
     @EnvironmentObject var authManager: AuthenticationManager
     @EnvironmentObject var teamManager: TeamManager
-    @State private var showProfile = false
     
     var body: some View {
         NavigationView {
@@ -32,21 +31,6 @@ struct HomeView: View {
             }
             .background(Color.screenBG.ignoresSafeArea())
             .navigationTitle(NSLocalizedString("home", comment: ""))
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button {
-                        showProfile = true
-                    } label: {
-                        Image(systemName: "person.circle.fill")
-                            .font(.system(size: 24))
-                            .foregroundStyle(Color.accentBrand)
-                    }
-                }
-            }
-            .sheet(isPresented: $showProfile) {
-                ProfileView()
-                    .environmentObject(authManager)
-            }
         }
     }
 }

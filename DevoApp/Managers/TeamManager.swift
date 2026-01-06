@@ -279,6 +279,7 @@ class TeamManager: ObservableObject {
     // MARK: - Refresh Team
     
     func refreshTeam() async {
+        // Recargar el equipo del usuario actual
         await loadCurrentUserTeam()
     }
     
