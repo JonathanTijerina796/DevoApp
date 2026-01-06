@@ -127,7 +127,7 @@ private struct TeamOptionCard: View {
 
 struct LeaderRegistrationView: View {
     @EnvironmentObject var authManager: AuthenticationManager
-    @StateObject private var teamManager = TeamManager()
+    @StateObject private var viewModel = DependencyContainer.shared.makeTeamViewModel()
     @Environment(\.dismiss) var dismiss
     @State private var teamName: String = ""
     @State private var showAlert = false
@@ -178,7 +178,7 @@ struct LeaderRegistrationView: View {
                         }
                     } label: {
                         HStack {
-                            if teamManager.isLoading {
+                            if viewModel.isLoading {
                                 ProgressView()
                                     .scaleEffect(0.8)
                                     .tint(.white)
@@ -192,7 +192,7 @@ struct LeaderRegistrationView: View {
                         .background(Color.accentBrand)
                         .cornerRadius(12)
                     }
-                    .disabled(teamManager.isLoading || teamName.isEmpty)
+                    .disabled(viewModel.isLoading || teamName.isEmpty)
                     .padding(.horizontal, 24)
                     .padding(.top, 16)
                     
@@ -212,7 +212,7 @@ struct LeaderRegistrationView: View {
             }
             .alert("Error", isPresented: $showAlert) {
                 Button("OK") {
-                    teamManager.errorMessage = ""
+                    viewModel.errorMessage = ""
                 }
             } message: {
                 Text(alertMessage)
@@ -232,25 +232,13 @@ struct LeaderRegistrationView: View {
     }
     
     private func handleRegistration() async {
-        guard let user = authManager.user else {
-            alertMessage = NSLocalizedString("user_not_authenticated", comment: "")
-            showAlert = true
-            return
-        }
-        
-        let leaderName = user.displayName ?? user.email ?? "Usuario"
-        
-        if let team = await teamManager.createTeam(
-            name: teamName,
-            leaderId: user.uid,
-            leaderName: leaderName
-        ) {
+        if let team = await viewModel.createTeam(name: teamName) {
             createdTeamCode = team.code
             showSuccessAlert = true
             // Notificar que se creó el equipo (la vista se actualizará automáticamente)
             NotificationCenter.default.post(name: NSNotification.Name("TeamCreated"), object: nil)
         } else {
-            alertMessage = teamManager.errorMessage
+            alertMessage = viewModel.errorMessage
             showAlert = true
         }
     }
@@ -260,7 +248,7 @@ struct LeaderRegistrationView: View {
 
 struct MemberRegistrationView: View {
     @EnvironmentObject var authManager: AuthenticationManager
-    @StateObject private var teamManager = TeamManager()
+    @StateObject private var viewModel = DependencyContainer.shared.makeTeamViewModel()
     @Environment(\.dismiss) var dismiss
     @State private var teamCode: String = ""
     @State private var showAlert = false
@@ -312,7 +300,7 @@ struct MemberRegistrationView: View {
                         }
                     } label: {
                         HStack {
-                            if teamManager.isLoading {
+                            if viewModel.isLoading {
                                 ProgressView()
                                     .scaleEffect(0.8)
                                     .tint(.white)
@@ -326,7 +314,7 @@ struct MemberRegistrationView: View {
                         .background(Color.secondaryBrand)
                         .cornerRadius(12)
                     }
-                    .disabled(teamManager.isLoading || teamCode.isEmpty)
+                    .disabled(viewModel.isLoading || teamCode.isEmpty)
                     .padding(.horizontal, 24)
                     .padding(.top, 16)
                     
@@ -346,7 +334,7 @@ struct MemberRegistrationView: View {
             }
             .alert("Error", isPresented: $showAlert) {
                 Button("OK") {
-                    teamManager.errorMessage = ""
+                    viewModel.errorMessage = ""
                 }
             } message: {
                 Text(alertMessage)
@@ -356,7 +344,7 @@ struct MemberRegistrationView: View {
                     dismiss()
                 }
             } message: {
-                if let team = teamManager.currentTeam {
+                if let team = viewModel.currentTeam {
                     Text(NSLocalizedString("team_joined_message", comment: "").replacingOccurrences(of: "{name}", with: team.name))
                 }
             }
@@ -368,14 +356,14 @@ struct MemberRegistrationView: View {
     }
     
     private func handleJoinTeam() async {
-        let success = await teamManager.joinTeam(code: teamCode)
+        let success = await viewModel.joinTeam(code: teamCode)
         
         if success {
             showSuccessAlert = true
             // Notificar que se unió al equipo
             NotificationCenter.default.post(name: NSNotification.Name("TeamJoined"), object: nil)
         } else {
-            alertMessage = teamManager.errorMessage
+            alertMessage = viewModel.errorMessage
             showAlert = true
         }
     }

@@ -14,14 +14,35 @@ class TeamManager: ObservableObject {
     // MARK: - Create Team
     
     func createTeam(name: String, leaderId: String, leaderName: String) async -> Team? {
-        guard !name.trimmingCharacters(in: .whitespaces).isEmpty else {
+        // Validar nombre del equipo
+        let trimmedName = name.trimmingCharacters(in: .whitespaces)
+        guard !trimmedName.isEmpty else {
             errorMessage = NSLocalizedString("team_name_required", comment: "")
             return nil
         }
         
+        // Validar que el nombre no sea demasiado largo
+        guard trimmedName.count <= 50 else {
+            errorMessage = "El nombre del equipo no puede tener más de 50 caracteres"
+            return nil
+        }
+        
+        // Validar usuario autenticado
         guard let user = Auth.auth().currentUser else {
             errorMessage = NSLocalizedString("user_not_authenticated", comment: "")
             return nil
+        }
+        
+        // Verificar que el usuario no tenga ya un equipo
+        do {
+            let userDoc = try await db.collection("users").document(user.uid).getDocument()
+            if let existingTeamId = userDoc.data()?["teamId"] as? String, !existingTeamId.isEmpty {
+                errorMessage = "Ya perteneces a un equipo. Debes salir del equipo actual antes de crear uno nuevo."
+                return nil
+            }
+        } catch {
+            // Si hay error al verificar, continuamos (puede ser que el documento no exista)
+            print("Warning: Could not check existing team: \(error.localizedDescription)")
         }
         
         isLoading = true
@@ -31,17 +52,25 @@ class TeamManager: ObservableObject {
             // Generar código único
             let code = try await generateUniqueTeamCode()
             
-            // Crear el equipo
+            // Crear el equipo con timestamp actual
+            let now = Timestamp()
             let team = Team(
-                name: name.trimmingCharacters(in: .whitespaces),
+                name: trimmedName,
                 code: code,
                 leaderId: leaderId,
                 leaderName: leaderName,
-                memberIds: []
+                memberIds: [],
+                createdAt: now,
+                updatedAt: now
             )
             
             // Guardar en Firestore
             let docRef = try await db.collection(teamsCollection).addDocument(from: team)
+            
+            // Verificar que el documento se creó correctamente
+            guard !docRef.documentID.isEmpty else {
+                throw NSError(domain: "TeamManager", code: -1, userInfo: [NSLocalizedDescriptionKey: "Error al crear el equipo: ID vacío"])
+            }
             
             // Actualizar el equipo local con el ID generado
             var updatedTeam = team
@@ -54,13 +83,25 @@ class TeamManager: ObservableObject {
                 "updatedAt": Timestamp()
             ], merge: true)
             
+            // Verificar que se guardó correctamente
+            let verificationDoc = try await db.collection("users").document(user.uid).getDocument()
+            guard let savedTeamId = verificationDoc.data()?["teamId"] as? String,
+                  savedTeamId == docRef.documentID else {
+                throw NSError(domain: "TeamManager", code: -1, userInfo: [NSLocalizedDescriptionKey: "Error al guardar la referencia del equipo en el perfil del usuario"])
+            }
+            
             isLoading = false
             currentTeam = updatedTeam
+            
+            print("✅ Equipo creado exitosamente: \(updatedTeam.name) con código: \(updatedTeam.code)")
+            
             return updatedTeam
             
         } catch {
             isLoading = false
-            errorMessage = error.localizedDescription
+            let errorDesc = error.localizedDescription
+            errorMessage = errorDesc.isEmpty ? "Error desconocido al crear el equipo" : errorDesc
+            print("❌ Error al crear equipo: \(errorDesc)")
             return nil
         }
     }
