@@ -11,9 +11,10 @@ final class TeamViewModel: ObservableObject {
     @Published var errorMessage = ""
     
     // Dependency Injection - dependemos de abstracciones (protocolos)
-    private let createTeamUseCase: CreateTeamUseCaseProtocol
-    private let joinTeamUseCase: JoinTeamUseCaseProtocol
-    private let getUserTeamUseCase: GetUserTeamUseCaseProtocol
+    // No aisladas al MainActor para permitir inicialización desde cualquier contexto
+    nonisolated(unsafe) private let createTeamUseCase: CreateTeamUseCaseProtocol
+    nonisolated(unsafe) private let joinTeamUseCase: JoinTeamUseCaseProtocol
+    nonisolated(unsafe) private let getUserTeamUseCase: GetUserTeamUseCaseProtocol
     
     nonisolated init(
         createTeamUseCase: CreateTeamUseCaseProtocol,
@@ -28,30 +29,45 @@ final class TeamViewModel: ObservableObject {
     // MARK: - Create Team
     
     func createTeam(name: String) async -> TeamEntity? {
+        print("🎯 [TeamViewModel] createTeam llamado con nombre: \(name)")
+        
         guard let user = Auth.auth().currentUser else {
+            print("❌ [TeamViewModel] Usuario no autenticado")
             errorMessage = NSLocalizedString("user_not_authenticated", comment: "")
             return nil
         }
         
         let leaderName = user.displayName ?? user.email ?? "Usuario"
+        print("👤 [TeamViewModel] Usuario autenticado: \(user.uid), nombre: \(leaderName)")
         
         isLoading = true
         errorMessage = ""
+        print("🔄 [TeamViewModel] isLoading = true")
         
         do {
+            print("🚀 [TeamViewModel] Ejecutando CreateTeamUseCase...")
             let team = try await createTeamUseCase.execute(
                 name: name,
                 leaderId: user.uid,
                 leaderName: leaderName
             )
             
+            print("✅ [TeamViewModel] UseCase completado exitosamente")
+            print("   - Equipo: \(team.name), código: \(team.code), ID: \(team.id ?? "nil")")
+            
             currentTeam = team
             isLoading = false
+            print("🔄 [TeamViewModel] isLoading = false, currentTeam actualizado")
+            
             return team
             
         } catch {
             isLoading = false
             errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+            print("❌ [TeamViewModel] Error en UseCase:")
+            print("   - Error: \(errorMessage)")
+            print("   - Tipo: \(type(of: error))")
+            print("🔄 [TeamViewModel] isLoading = false después del error")
             return nil
         }
     }

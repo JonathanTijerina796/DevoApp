@@ -87,6 +87,11 @@ struct ContentView: View {
                 await teamManager.loadCurrentUserTeam()
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("TeamDeleted"))) { _ in
+            // Cuando se elimina el equipo, limpiar el equipo local
+            print("📢 [ContentView] Notificación TeamDeleted recibida, limpiando equipo...")
+            teamManager.currentTeam = nil
+        }
     }
 }
 

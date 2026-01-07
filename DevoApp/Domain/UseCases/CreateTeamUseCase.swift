@@ -35,10 +35,7 @@ final class CreateTeamUseCase: CreateTeamUseCaseProtocol {
             throw TeamError.userAlreadyInTeam
         }
         
-        // Generar código único
-        let code = try await teamRepository.generateUniqueTeamCode()
-        
-        // Crear el equipo
+        // Crear el equipo (el código se genera internamente en el repositorio)
         let team = try await teamRepository.createTeam(
             name: trimmedName,
             leaderId: leaderId,

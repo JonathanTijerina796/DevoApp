@@ -48,9 +48,13 @@ class TeamManager: ObservableObject {
         isLoading = true
         errorMessage = ""
         
+        print("🔄 [TeamManager] isLoading = true, iniciando creación...")
+        
         do {
             // Generar código único
+            print("🔑 [TeamManager] Generando código único...")
             let code = try await generateUniqueTeamCode()
+            print("🔑 [TeamManager] Código generado: \(code)")
             
             // Crear el equipo con timestamp actual
             let now = Timestamp()
@@ -65,7 +69,9 @@ class TeamManager: ObservableObject {
             )
             
             // Guardar en Firestore
+            print("💾 [TeamManager] Guardando equipo en Firestore...")
             let docRef = try await db.collection(teamsCollection).addDocument(from: team)
+            print("💾 [TeamManager] Documento creado con ID: \(docRef.documentID)")
             
             // Verificar que el documento se creó correctamente
             guard !docRef.documentID.isEmpty else {
@@ -77,23 +83,28 @@ class TeamManager: ObservableObject {
             updatedTeam.id = docRef.documentID
             
             // Guardar referencia del equipo en el perfil del usuario
+            print("👤 [TeamManager] Actualizando perfil del usuario con teamId: \(docRef.documentID)")
             try await db.collection("users").document(user.uid).setData([
                 "teamId": docRef.documentID,
                 "role": "leader",
                 "updatedAt": Timestamp()
             ], merge: true)
+            print("👤 [TeamManager] Perfil del usuario actualizado")
             
             // Verificar que se guardó correctamente
+            print("🔍 [TeamManager] Verificando que se guardó correctamente...")
             let verificationDoc = try await db.collection("users").document(user.uid).getDocument()
             guard let savedTeamId = verificationDoc.data()?["teamId"] as? String,
                   savedTeamId == docRef.documentID else {
                 throw NSError(domain: "TeamManager", code: -1, userInfo: [NSLocalizedDescriptionKey: "Error al guardar la referencia del equipo en el perfil del usuario"])
             }
+            print("✅ [TeamManager] Verificación exitosa, teamId guardado: \(savedTeamId)")
             
             isLoading = false
             currentTeam = updatedTeam
             
-            print("✅ Equipo creado exitosamente: \(updatedTeam.name) con código: \(updatedTeam.code)")
+            print("✅ [TeamManager] Equipo creado exitosamente: \(updatedTeam.name) con código: \(updatedTeam.code)")
+            print("🔄 [TeamManager] isLoading = false, currentTeam actualizado")
             
             return updatedTeam
             
@@ -101,7 +112,11 @@ class TeamManager: ObservableObject {
             isLoading = false
             let errorDesc = error.localizedDescription
             errorMessage = errorDesc.isEmpty ? "Error desconocido al crear el equipo" : errorDesc
-            print("❌ Error al crear equipo: \(errorDesc)")
+            print("❌ [TeamManager] Error al crear equipo:")
+            print("   - Error: \(errorDesc)")
+            print("   - Domain: \((error as NSError).domain)")
+            print("   - Code: \((error as NSError).code)")
+            print("🔄 [TeamManager] isLoading = false después del error")
             return nil
         }
     }
@@ -273,6 +288,78 @@ class TeamManager: ObservableObject {
         } catch {
             isLoading = false
             errorMessage = error.localizedDescription
+        }
+    }
+    
+    // MARK: - Delete Team
+    
+    func deleteTeam() async -> Bool {
+        guard let user = Auth.auth().currentUser else {
+            errorMessage = NSLocalizedString("user_not_authenticated", comment: "")
+            return false
+        }
+        
+        guard let team = currentTeam, let teamId = team.id else {
+            errorMessage = NSLocalizedString("team_not_found", comment: "")
+            return false
+        }
+        
+        // Verificar que el usuario es el líder
+        guard team.leaderId == user.uid else {
+            errorMessage = NSLocalizedString("only_leader_can_delete", comment: "")
+            return false
+        }
+        
+        isLoading = true
+        errorMessage = ""
+        
+        print("🗑️ [TeamManager] Iniciando eliminación del equipo: \(team.name) (ID: \(teamId))")
+        
+        do {
+            // Obtener todos los miembros del equipo (incluyendo el líder)
+            var allMemberIds = team.memberIds
+            allMemberIds.append(team.leaderId)
+            
+            print("👥 [TeamManager] Eliminando referencias de \(allMemberIds.count) usuarios...")
+            
+            // Eliminar referencias del equipo en todos los usuarios
+            let batch = db.batch()
+            for memberId in allMemberIds {
+                let userRef = db.collection("users").document(memberId)
+                batch.updateData([
+                    "teamId": FieldValue.delete(),
+                    "role": FieldValue.delete()
+                ], forDocument: userRef)
+            }
+            
+            // Eliminar el equipo
+            let teamRef = db.collection(teamsCollection).document(teamId)
+            batch.deleteDocument(teamRef)
+            
+            print("💾 [TeamManager] Ejecutando batch delete...")
+            try await batch.commit()
+            print("✅ [TeamManager] Batch delete completado exitosamente")
+            
+            // Limpiar el equipo local
+            currentTeam = nil
+            isLoading = false
+            
+            print("✅ [TeamManager] Equipo eliminado exitosamente")
+            
+            // Notificar que el equipo fue eliminado
+            NotificationCenter.default.post(name: NSNotification.Name("TeamDeleted"), object: nil)
+            
+            return true
+            
+        } catch {
+            isLoading = false
+            let errorDesc = error.localizedDescription
+            errorMessage = errorDesc.isEmpty ? "Error desconocido al eliminar el equipo" : errorDesc
+            print("❌ [TeamManager] Error al eliminar equipo:")
+            print("   - Error: \(errorDesc)")
+            print("   - Domain: \((error as NSError).domain)")
+            print("   - Code: \((error as NSError).code)")
+            return false
         }
     }
     

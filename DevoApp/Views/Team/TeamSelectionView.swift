@@ -232,14 +232,34 @@ struct LeaderRegistrationView: View {
     }
     
     private func handleRegistration() async {
+        print("🚀 [LeaderRegistration] Iniciando creación de equipo...")
+        print("📝 [LeaderRegistration] Nombre del equipo: \(teamName)")
+        print("🔄 [LeaderRegistration] isLoading antes: \(viewModel.isLoading)")
+        
         if let team = await viewModel.createTeam(name: teamName) {
-            createdTeamCode = team.code
-            showSuccessAlert = true
+            print("✅ [LeaderRegistration] Equipo creado exitosamente:")
+            print("   - Nombre: \(team.name)")
+            print("   - Código: \(team.code)")
+            print("   - ID: \(team.id ?? "nil")")
+            print("🔄 [LeaderRegistration] isLoading después: \(viewModel.isLoading)")
+            
+            await MainActor.run {
+                createdTeamCode = team.code
+                showSuccessAlert = true
+            }
+            
             // Notificar que se creó el equipo (la vista se actualizará automáticamente)
             NotificationCenter.default.post(name: NSNotification.Name("TeamCreated"), object: nil)
+            print("📢 [LeaderRegistration] Notificación TeamCreated enviada")
         } else {
-            alertMessage = viewModel.errorMessage
-            showAlert = true
+            print("❌ [LeaderRegistration] Error al crear equipo")
+            print("   - Error message: \(viewModel.errorMessage)")
+            print("🔄 [LeaderRegistration] isLoading después del error: \(viewModel.isLoading)")
+            
+            await MainActor.run {
+                alertMessage = viewModel.errorMessage
+                showAlert = true
+            }
         }
     }
 }
