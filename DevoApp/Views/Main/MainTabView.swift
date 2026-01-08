@@ -32,6 +32,8 @@ struct MainTabView: View {
                 .tag(1)
         }
         .accentColor(Color.accentBrand)
+        // Asegurar que el TabBar esté siempre visible
+        .toolbar(.visible, for: .tabBar)
     }
 }
 
@@ -75,91 +77,146 @@ struct HomeTabView: View {
 
 struct ProfileTabView: View {
     @EnvironmentObject var authManager: AuthenticationManager
+    @EnvironmentObject var teamManager: TeamManager
     @State private var userInfo: UserInfo?
     @State private var isLoading = true
     @State private var showSignOutAlert = false
+    @State private var allowPaste = true
+    @State private var activateReminder = true
     
     var body: some View {
         NavigationView {
             ScrollView {
-                VStack(spacing: 24) {
+                VStack(spacing: 0) {
+                    // Header con nombre del equipo (si tiene equipo)
+                    if let team = teamManager.currentTeam {
+                        HStack(spacing: 12) {
+                            Image(systemName: "person.3.fill")
+                                .font(.system(size: 20))
+                                .foregroundStyle(Color.accentBrand)
+                            Text(team.name)
+                                .font(.system(size: 18, weight: .semibold))
+                                .foregroundStyle(Color.primaryText)
+                            Spacer()
+                        }
+                        .padding(.horizontal, 24)
+                        .padding(.vertical, 16)
+                        .background(Color.gray.opacity(0.1))
+                    }
+                    
                     if isLoading {
                         ProgressView()
                             .padding()
-                    } else {
-                        // Header con avatar
-                        VStack(spacing: 16) {
-                            // Avatar
-                            Circle()
-                                .fill(Color.accentBrand)
-                                .frame(width: 100, height: 100)
-                                .overlay {
-                                    Text(avatarInitials)
-                                        .font(.system(size: 40, weight: .bold))
-                                        .foregroundColor(.white)
-                                }
-                            
-                            // Nombre
-                            Text(userInfo?.displayName ?? NSLocalizedString("user", comment: ""))
-                                .font(.system(size: 24, weight: .bold))
-                                .foregroundStyle(Color.primaryText)
-                            
-                            // Email
-                            if let email = userInfo?.email {
-                                Text(email)
-                                    .font(.system(size: 16))
-                                    .foregroundStyle(Color.secondaryText)
-                            }
-                        }
-                        .padding(.top, 32)
-                        
-                        // Información del usuario
-                        VStack(spacing: 16) {
-                            // Rol en el equipo
-                            if let role = userInfo?.role {
-                                InfoRow(
-                                    icon: "person.fill",
-                                    title: NSLocalizedString("role", comment: ""),
-                                    value: role == "leader" ? NSLocalizedString("leader", comment: "") : NSLocalizedString("member", comment: "")
-                                )
-                            }
-                            
-                            // Fecha de registro
-                            if let createdAt = userInfo?.createdAt {
-                                InfoRow(
-                                    icon: "calendar",
-                                    title: NSLocalizedString("member_since", comment: ""),
-                                    value: formatDate(createdAt)
-                                )
-                            }
-                        }
-                        .padding(.horizontal, 24)
-                        .padding(.top, 32)
-                        
-                        // Botón de cerrar sesión
-                        Button {
-                            showSignOutAlert = true
-                        } label: {
-                            HStack {
-                                Image(systemName: "rectangle.portrait.and.arrow.right")
-                                Text(NSLocalizedString("sign_out", comment: ""))
-                                    .font(.headline)
-                            }
-                            .foregroundColor(.white)
                             .frame(maxWidth: .infinity)
-                            .frame(height: 52)
-                            .background(Color.red)
+                            .padding(.top, 40)
+                    } else {
+                        VStack(spacing: 24) {
+                            // Avatar y información del usuario
+                            VStack(spacing: 16) {
+                                // Avatar circular azul
+                                Circle()
+                                    .fill(Color(red: 0.2, green: 0.4, blue: 0.8))
+                                    .frame(width: 80, height: 80)
+                                    .overlay {
+                                        Text(avatarInitials)
+                                            .font(.system(size: 32, weight: .bold))
+                                            .foregroundColor(.white)
+                                    }
+                                
+                                // Nombre
+                                Text(userInfo?.displayName ?? NSLocalizedString("user", comment: ""))
+                                    .font(.system(size: 20, weight: .bold))
+                                    .foregroundStyle(Color.primaryText)
+                                
+                                // Email
+                                if let email = userInfo?.email {
+                                    Text(email)
+                                        .font(.system(size: 14))
+                                        .foregroundStyle(Color.secondaryText)
+                                }
+                            }
+                            .padding(.top, 24)
+                            
+                            // Menú de opciones
+                            VStack(spacing: 0) {
+                                // Ver mis equipos
+                                NavigationLink {
+                                    MainTeamView()
+                                        .environmentObject(authManager)
+                                        .environmentObject(teamManager)
+                                        // TabBar visible - pantalla principal
+                                } label: {
+                                    MenuRowContent(
+                                        title: NSLocalizedString("view_my_teams", comment: ""),
+                                        icon: "person.3.fill",
+                                        showChevron: true
+                                    )
+                                }
+                                .buttonStyle(PlainButtonStyle())
+                                
+                                Divider().padding(.leading, 60)
+                                
+                                // Cambiar contraseña
+                                NavigationLink {
+                                    ChangePasswordView()
+                                        .toolbar(.hidden, for: .tabBar) // Ocultar TabBar en configuración
+                                } label: {
+                                    MenuRowContent(
+                                        title: NSLocalizedString("change_password", comment: ""),
+                                        icon: "lock.fill",
+                                        showChevron: true
+                                    )
+                                }
+                                .buttonStyle(PlainButtonStyle())
+                                
+                                Divider().padding(.leading, 60)
+                                
+                                // Crear equipo
+                                NavigationLink {
+                                    TeamSelectionView()
+                                        .environmentObject(authManager)
+                                        // TabBar visible - pantalla principal de selección
+                                } label: {
+                                    MenuRowContent(
+                                        title: NSLocalizedString("create_team", comment: ""),
+                                        icon: "plus.circle.fill",
+                                        showChevron: true
+                                    )
+                                }
+                                .buttonStyle(PlainButtonStyle())
+                                
+                                Divider().padding(.leading, 60)
+                                
+                                // Permitir pegar
+                                ToggleRow(
+                                    title: NSLocalizedString("allow_paste", comment: ""),
+                                    icon: "doc.on.clipboard.fill",
+                                    isOn: $allowPaste
+                                )
+                                
+                                Divider().padding(.leading, 60)
+                                
+                                // Activar recordatorio
+                                ToggleRow(
+                                    title: NSLocalizedString("activate_reminder", comment: ""),
+                                    icon: "bell.fill",
+                                    isOn: $activateReminder
+                                )
+                            }
+                            .background(Color.white)
                             .cornerRadius(12)
+                            .padding(.horizontal, 24)
+                            .padding(.top, 24)
+                            
+                            Spacer()
                         }
-                        .padding(.horizontal, 24)
-                        .padding(.top, 32)
-                        .padding(.bottom, 40)
                     }
                 }
             }
             .background(Color.screenBG.ignoresSafeArea())
-            .navigationTitle(NSLocalizedString("profile", comment: ""))
+            .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar(.visible, for: .tabBar) // Asegurar que TabBar esté visible al regresar
             .task {
                 await loadUserInfo()
             }
@@ -237,6 +294,79 @@ struct ProfileTabView: View {
         formatter.timeStyle = .none
         formatter.locale = Locale.current
         return formatter.string(from: date)
+    }
+}
+
+// MARK: - Menu Row
+
+struct MenuRow: View {
+    let title: String
+    let icon: String
+    let showChevron: Bool
+    let action: () -> Void
+    
+    var body: some View {
+        Button(action: action) {
+            MenuRowContent(title: title, icon: icon, showChevron: showChevron)
+        }
+        .buttonStyle(PlainButtonStyle())
+    }
+}
+
+// MARK: - Menu Row Content (reutilizable)
+
+struct MenuRowContent: View {
+    let title: String
+    let icon: String
+    let showChevron: Bool
+    
+    var body: some View {
+        HStack(spacing: 16) {
+            Image(systemName: icon)
+                .font(.system(size: 20))
+                .foregroundStyle(Color.accentBrand)
+                .frame(width: 30)
+            
+            Text(title)
+                .font(.system(size: 16))
+                .foregroundStyle(Color.primaryText)
+            
+            Spacer()
+            
+            if showChevron {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 14))
+                    .foregroundStyle(Color.secondaryText)
+            }
+        }
+        .padding(16)
+    }
+}
+
+// MARK: - Toggle Row
+
+struct ToggleRow: View {
+    let title: String
+    let icon: String
+    @Binding var isOn: Bool
+    
+    var body: some View {
+        HStack(spacing: 16) {
+            Image(systemName: icon)
+                .font(.system(size: 20))
+                .foregroundStyle(Color.accentBrand)
+                .frame(width: 30)
+            
+            Text(title)
+                .font(.system(size: 16))
+                .foregroundStyle(Color.primaryText)
+            
+            Spacer()
+            
+            Toggle("", isOn: $isOn)
+                .tint(.green)
+        }
+        .padding(16)
     }
 }
 

@@ -31,18 +31,6 @@ struct MainTeamView: View {
             }
             .background(Color.screenBG.ignoresSafeArea())
             .navigationTitle(NSLocalizedString("my_team", comment: ""))
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    NavigationLink {
-                        ProfileView()
-                            .environmentObject(authManager)
-                    } label: {
-                        Image(systemName: "person.circle.fill")
-                            .font(.system(size: 24))
-                            .foregroundStyle(Color.accentBrand)
-                    }
-                }
-            }
         }
         .task {
             await loadUserRole()
