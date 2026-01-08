@@ -10,6 +10,7 @@ protocol TeamRepositoryProtocol {
     func updateTeam(_ team: TeamEntity) async throws
     func addMemberToTeam(teamId: String, memberId: String) async throws
     func removeMemberFromTeam(teamId: String, memberId: String) async throws
+    func deleteTeam(_ teamId: String) async throws
     func generateUniqueTeamCode() async throws -> String
     func checkCodeExists(_ code: String) async throws -> Bool
 }

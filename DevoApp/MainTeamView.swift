@@ -36,6 +36,7 @@ struct MainTeamView: View {
                     NavigationLink {
                         ProfileView()
                             .environmentObject(authManager)
+                            .environmentObject(teamManager)
                     } label: {
                         Image(systemName: "person.circle.fill")
                             .font(.system(size: 24))
@@ -110,9 +111,11 @@ struct TeamHeaderCard: View {
 
 struct LeaderDashboardView: View {
     @EnvironmentObject var teamManager: TeamManager
+    @StateObject private var viewModel = DependencyContainer.shared.makeTeamViewModel()
     let team: Team
     @State private var showShareCode = false
     @State private var showMembers = false
+    @State private var showDeleteAlert = false
     
     var body: some View {
         VStack(spacing: 16) {
@@ -158,6 +161,26 @@ struct LeaderDashboardView: View {
                         .shadow(color: Color.black.opacity(0.05), radius: 8, x: 0, y: 2)
                 )
             }
+            
+            // Botón para eliminar equipo
+            Button {
+                showDeleteAlert = true
+            } label: {
+                HStack {
+                    Image(systemName: "trash")
+                        .font(.system(size: 20))
+                    Text(NSLocalizedString("delete_team", comment: ""))
+                        .font(.headline)
+                    Spacer()
+                }
+                .foregroundStyle(Color.white)
+                .padding(20)
+                .background(
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(Color.red)
+                )
+            }
+            .disabled(viewModel.isLoading)
         }
         .sheet(isPresented: $showShareCode) {
             ShareCodeView(teamCode: team.code, teamName: team.name)
@@ -165,6 +188,37 @@ struct LeaderDashboardView: View {
         .sheet(isPresented: $showMembers) {
             TeamMembersView(team: team)
                 .environmentObject(teamManager)
+        }
+        .alert(NSLocalizedString("delete_team", comment: ""), isPresented: $showDeleteAlert) {
+            Button(NSLocalizedString("cancel", comment: ""), role: .cancel) { }
+            Button(NSLocalizedString("delete", comment: ""), role: .destructive) {
+                Task {
+                    await handleDeleteTeam()
+                }
+            }
+        } message: {
+            Text(NSLocalizedString("delete_team_confirmation", comment: ""))
+        }
+    }
+    
+    private func handleDeleteTeam() async {
+        // Sincronizar el equipo actual con el viewModel antes de eliminar
+        if let teamId = team.id {
+            viewModel.currentTeam = TeamEntity(
+                id: teamId,
+                name: team.name,
+                code: team.code,
+                leaderId: team.leaderId,
+                leaderName: team.leaderName,
+                memberIds: team.memberIds,
+                createdAt: team.createdAt.dateValue(),
+                updatedAt: team.updatedAt.dateValue()
+            )
+        }
+        
+        if await viewModel.deleteTeam() {
+            teamManager.currentTeam = nil
+            NotificationCenter.default.post(name: NSNotification.Name("TeamDeleted"), object: nil)
         }
     }
 }

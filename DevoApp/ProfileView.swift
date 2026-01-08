@@ -4,10 +4,19 @@ import FirebaseFirestore
 
 struct ProfileView: View {
     @EnvironmentObject var authManager: AuthenticationManager
+    @EnvironmentObject var teamManager: TeamManager
     @Environment(\.dismiss) var dismiss
     @State private var userInfo: UserInfo?
     @State private var isLoading = true
     @State private var showSignOutAlert = false
+    @State private var reminderEnabled = true
+    @State private var allowPaste = true
+    @State private var showMyTeams = false
+    @State private var showChangePassword = false
+    
+    private var isLeader: Bool {
+        userInfo?.role == "leader"
+    }
     
     var body: some View {
         NavigationView {
@@ -21,7 +30,7 @@ struct ProfileView: View {
                         VStack(spacing: 16) {
                             // Avatar
                             Circle()
-                                .fill(Color.accentBrand)
+                                .fill(Color(red: 0.2, green: 0.4, blue: 0.8))
                                 .frame(width: 100, height: 100)
                                 .overlay {
                                     Text(avatarInitials)
@@ -42,29 +51,72 @@ struct ProfileView: View {
                             }
                         }
                         .padding(.top, 32)
+                        .padding(.horizontal, 24)
                         
-                        // Información del usuario
-                        VStack(spacing: 16) {
-                            // Rol en el equipo
-                            if let role = userInfo?.role {
-                                InfoRow(
-                                    icon: "person.fill",
-                                    title: NSLocalizedString("role", comment: ""),
-                                    value: role == "leader" ? NSLocalizedString("leader", comment: "") : NSLocalizedString("member", comment: "")
-                                )
+                        // Menú de opciones
+                        VStack(spacing: 0) {
+                            // Ver mis equipos
+                            MenuRow(
+                                title: NSLocalizedString("view_my_teams", comment: ""),
+                                icon: "person.3.fill",
+                                showChevron: true
+                            ) {
+                                showMyTeams = true
                             }
                             
-                            // Fecha de registro
-                            if let createdAt = userInfo?.createdAt {
-                                InfoRow(
-                                    icon: "calendar",
-                                    title: NSLocalizedString("member_since", comment: ""),
-                                    value: formatDate(createdAt)
-                                )
+                            Divider()
+                                .padding(.leading, 60)
+                            
+                            // Cambiar contraseña
+                            MenuRow(
+                                title: NSLocalizedString("change_password", comment: ""),
+                                icon: "lock.fill",
+                                showChevron: true
+                            ) {
+                                showChangePassword = true
                             }
+                            
+                            Divider()
+                                .padding(.leading, 60)
+                            
+                            // Activar recordatorio
+                            ToggleRow(
+                                title: NSLocalizedString("activate_reminder", comment: ""),
+                                icon: "bell.fill",
+                                isOn: $reminderEnabled
+                            )
+                            
+                            Divider()
+                                .padding(.leading, 60)
+                            
+                            // Permitir pegar
+                            ToggleRow(
+                                title: NSLocalizedString("allow_paste", comment: ""),
+                                icon: "doc.on.clipboard.fill",
+                                isOn: $allowPaste
+                            )
                         }
+                        .background(Color.white)
+                        .cornerRadius(12)
                         .padding(.horizontal, 24)
                         .padding(.top, 32)
+                        
+                        // Botón Agregar nuevo integrante (solo para líderes)
+                        if isLeader {
+                            Button {
+                                showMyTeams = true
+                            } label: {
+                                Text(NSLocalizedString("add_new_member", comment: ""))
+                                    .font(.headline)
+                                    .foregroundColor(.white)
+                                    .frame(maxWidth: .infinity)
+                                    .frame(height: 52)
+                                    .background(Color.green)
+                                    .cornerRadius(12)
+                            }
+                            .padding(.horizontal, 24)
+                            .padding(.top, 24)
+                        }
                         
                         // Botón de cerrar sesión
                         Button {
@@ -82,13 +134,13 @@ struct ProfileView: View {
                             .cornerRadius(12)
                         }
                         .padding(.horizontal, 24)
-                        .padding(.top, 32)
+                        .padding(.top, 24)
                         .padding(.bottom, 40)
                     }
                 }
             }
             .background(Color.screenBG.ignoresSafeArea())
-            .navigationTitle(NSLocalizedString("profile", comment: ""))
+            .navigationTitle(NSLocalizedString("my_profile", comment: ""))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
@@ -108,6 +160,11 @@ struct ProfileView: View {
                 }
             } message: {
                 Text(NSLocalizedString("sign_out_confirmation", comment: ""))
+            }
+            .sheet(isPresented: $showMyTeams) {
+                MainTeamView()
+                    .environmentObject(authManager)
+                    .environmentObject(teamManager)
             }
         }
     }
@@ -178,12 +235,46 @@ struct ProfileView: View {
     }
 }
 
-// MARK: - Info Row
+// MARK: - Menu Row
 
-struct InfoRow: View {
-    let icon: String
+struct MenuRow: View {
     let title: String
-    let value: String
+    let icon: String
+    let showChevron: Bool
+    let action: () -> Void
+    
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 16) {
+                Image(systemName: icon)
+                    .font(.system(size: 20))
+                    .foregroundStyle(Color.accentBrand)
+                    .frame(width: 30)
+                
+                Text(title)
+                    .font(.system(size: 16))
+                    .foregroundStyle(Color.primaryText)
+                
+                Spacer()
+                
+                if showChevron {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 14))
+                        .foregroundStyle(Color.secondaryText)
+                }
+            }
+            .padding(16)
+        }
+        .buttonStyle(PlainButtonStyle())
+    }
+}
+
+// MARK: - Toggle Row
+
+struct ToggleRow: View {
+    let title: String
+    let icon: String
+    @Binding var isOn: Bool
     
     var body: some View {
         HStack(spacing: 16) {
@@ -192,24 +283,16 @@ struct InfoRow: View {
                 .foregroundStyle(Color.accentBrand)
                 .frame(width: 30)
             
-            VStack(alignment: .leading, spacing: 4) {
-                Text(title)
-                    .font(.system(size: 14))
-                    .foregroundStyle(Color.secondaryText)
-                
-                Text(value)
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(Color.primaryText)
-            }
+            Text(title)
+                .font(.system(size: 16))
+                .foregroundStyle(Color.primaryText)
             
             Spacer()
+            
+            Toggle("", isOn: $isOn)
+                .tint(.green)
         }
         .padding(16)
-        .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(Color.white)
-                .shadow(color: Color.black.opacity(0.05), radius: 4, x: 0, y: 2)
-        )
     }
 }
 

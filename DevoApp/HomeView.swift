@@ -46,6 +46,7 @@ struct HomeView: View {
             .sheet(isPresented: $showProfile) {
                 ProfileView()
                     .environmentObject(authManager)
+                    .environmentObject(teamManager)
             }
         }
     }

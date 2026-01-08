@@ -42,13 +42,21 @@ final class DependencyContainer {
         )
     }()
     
+    lazy var deleteTeamUseCase: DeleteTeamUseCaseProtocol = {
+        DeleteTeamUseCase(
+            teamRepository: teamRepository,
+            userRepository: userRepository
+        )
+    }()
+    
     // MARK: - ViewModels
     
     func makeTeamViewModel() -> TeamViewModel {
         TeamViewModel(
             createTeamUseCase: createTeamUseCase,
             joinTeamUseCase: joinTeamUseCase,
-            getUserTeamUseCase: getUserTeamUseCase
+            getUserTeamUseCase: getUserTeamUseCase,
+            deleteTeamUseCase: deleteTeamUseCase
         )
     }
 }

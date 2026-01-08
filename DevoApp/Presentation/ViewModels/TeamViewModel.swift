@@ -11,18 +11,21 @@ final class TeamViewModel: ObservableObject {
     @Published var errorMessage = ""
     
     // Dependency Injection - dependemos de abstracciones (protocolos)
-    private let createTeamUseCase: CreateTeamUseCaseProtocol
-    private let joinTeamUseCase: JoinTeamUseCaseProtocol
-    private let getUserTeamUseCase: GetUserTeamUseCaseProtocol
+    nonisolated(unsafe) private let createTeamUseCase: CreateTeamUseCaseProtocol
+    nonisolated(unsafe) private let joinTeamUseCase: JoinTeamUseCaseProtocol
+    nonisolated(unsafe) private let getUserTeamUseCase: GetUserTeamUseCaseProtocol
+    nonisolated(unsafe) private let deleteTeamUseCase: DeleteTeamUseCaseProtocol
     
     nonisolated init(
         createTeamUseCase: CreateTeamUseCaseProtocol,
         joinTeamUseCase: JoinTeamUseCaseProtocol,
-        getUserTeamUseCase: GetUserTeamUseCaseProtocol
+        getUserTeamUseCase: GetUserTeamUseCaseProtocol,
+        deleteTeamUseCase: DeleteTeamUseCaseProtocol
     ) {
         self.createTeamUseCase = createTeamUseCase
         self.joinTeamUseCase = joinTeamUseCase
         self.getUserTeamUseCase = getUserTeamUseCase
+        self.deleteTeamUseCase = deleteTeamUseCase
     }
     
     // MARK: - Create Team
@@ -96,6 +99,36 @@ final class TeamViewModel: ObservableObject {
         } catch {
             isLoading = false
             errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+        }
+    }
+    
+    // MARK: - Delete Team
+    
+    func deleteTeam() async -> Bool {
+        guard let user = Auth.auth().currentUser else {
+            errorMessage = NSLocalizedString("user_not_authenticated", comment: "")
+            return false
+        }
+        
+        guard let teamId = currentTeam?.id else {
+            errorMessage = NSLocalizedString("team_not_found", comment: "")
+            return false
+        }
+        
+        isLoading = true
+        errorMessage = ""
+        
+        defer { isLoading = false }
+        
+        do {
+            try await deleteTeamUseCase.execute(teamId: teamId, leaderId: user.uid)
+            currentTeam = nil
+            try await Task.sleep(nanoseconds: 2_000_000_000) // Delay de 2 segundos
+            NotificationCenter.default.post(name: NSNotification.Name("TeamDeleted"), object: nil)
+            return true
+        } catch {
+            errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+            return false
         }
     }
 }

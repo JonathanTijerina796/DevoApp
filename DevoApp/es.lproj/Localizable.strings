@@ -87,12 +87,21 @@
 "team_id_missing" = "ID del equipo no encontrado";
 "only_leader_can_remove" = "Solo el líder puede eliminar miembros";
 "member_not_in_team" = "El miembro no está en el equipo";
+"delete_team" = "Eliminar Equipo";
+"delete_team_confirmation" = "¿Estás seguro de que deseas eliminar este equipo? Esta acción no se puede deshacer.";
+"delete" = "Eliminar";
 
 // Profile View
 "profile" = "Perfil";
+"my_profile" = "Mi perfil";
 "user" = "Usuario";
 "role" = "Rol";
 "member_since" = "Miembro desde";
+"view_my_teams" = "Ver mis equipos";
+"change_password" = "Cambiar contraseña";
+"activate_reminder" = "Activar recordatorio";
+"allow_paste" = "Permitir pegar";
+"add_new_member" = "Agregar nuevo integrante";
 "sign_out" = "Cerrar Sesión";
 "sign_out_confirmation" = "¿Estás seguro de que deseas cerrar sesión?";
 

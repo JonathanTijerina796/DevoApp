@@ -90,6 +90,10 @@ final class TeamRepository: TeamRepositoryProtocol {
         ])
     }
     
+    func deleteTeam(_ teamId: String) async throws {
+        try await db.collection(teamsCollection).document(teamId).delete()
+    }
+    
     func generateUniqueTeamCode() async throws -> String {
         let characters = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
         let codeLength = 6
