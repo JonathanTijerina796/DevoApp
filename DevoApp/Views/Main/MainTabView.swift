@@ -208,6 +208,29 @@ struct ProfileTabView: View {
                             .padding(.horizontal, 24)
                             .padding(.top, 24)
                             
+                            // Botón de cerrar sesión
+                            Button {
+                                showSignOutAlert = true
+                            } label: {
+                                HStack(spacing: 16) {
+                                    Image(systemName: "rectangle.portrait.and.arrow.right")
+                                        .font(.system(size: 20))
+                                        .foregroundStyle(Color.red)
+                                        .frame(width: 30)
+                                    
+                                    Text(NSLocalizedString("sign_out", comment: ""))
+                                        .font(.system(size: 16))
+                                        .foregroundStyle(Color.red)
+                                    
+                                    Spacer()
+                                }
+                                .padding(16)
+                                .background(Color.white)
+                                .cornerRadius(12)
+                            }
+                            .padding(.horizontal, 24)
+                            .padding(.top, 24)
+                            
                             Spacer()
                         }
                     }

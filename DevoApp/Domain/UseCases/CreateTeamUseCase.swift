@@ -1,4 +1,5 @@
 import Foundation
+import FirebaseAuth
 
 // MARK: - Create Team Use Case
 // Single Responsibility Principle: Una sola responsabilidad - crear un equipo
@@ -18,6 +19,16 @@ final class CreateTeamUseCase: CreateTeamUseCaseProtocol {
     }
     
     func execute(name: String, leaderId: String, leaderName: String) async throws -> TeamEntity {
+        // Validación de seguridad: verificar que el usuario esté autenticado
+        guard let currentUser = Auth.auth().currentUser else {
+            throw TeamError.userNotAuthenticated
+        }
+        
+        // Validación de seguridad: verificar que el leaderId coincida con el usuario autenticado
+        guard leaderId == currentUser.uid else {
+            throw TeamError.userNotAuthenticated
+        }
+        
         // Validaciones de negocio
         let trimmedName = name.trimmingCharacters(in: .whitespaces)
         
