@@ -70,6 +70,7 @@ struct ContentView: View {
                 }
             } else {
                 teamManager.currentTeam = nil
+                teamManager.stopListening()
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("TeamCreated"))) { _ in

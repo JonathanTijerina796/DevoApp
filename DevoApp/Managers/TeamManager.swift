@@ -10,6 +10,14 @@ class TeamManager: ObservableObject {
     
     private let db = Firestore.firestore()
     private let teamsCollection = "teams"
+    private var userListener: ListenerRegistration?
+    private var teamListener: ListenerRegistration?
+    
+    deinit {
+        // Limpiar listeners sin necesidad de main actor
+        userListener?.remove()
+        teamListener?.remove()
+    }
     
     // MARK: - Create Team
     
@@ -123,6 +131,9 @@ class TeamManager: ObservableObject {
             isLoading = false
             currentTeam = updatedTeam
             
+            // Iniciar listeners después de crear el equipo
+            startListening(userId: user.uid, teamId: docRef.documentID)
+            
             print("✅ [TeamManager] Equipo creado exitosamente: \(updatedTeam.name) con código: \(updatedTeam.code)")
             print("🔄 [TeamManager] isLoading = false, currentTeam actualizado")
             
@@ -208,7 +219,11 @@ class TeamManager: ObservableObject {
             var updatedTeam = team
             updatedTeam.memberIds = updatedMemberIds
             updatedTeam.updatedAt = Timestamp()
+            updatedTeam.id = document.documentID
             currentTeam = updatedTeam
+            
+            // Iniciar listeners después de unirse al equipo
+            startListening(userId: user.uid, teamId: document.documentID)
             
             isLoading = false
             return true
@@ -224,6 +239,7 @@ class TeamManager: ObservableObject {
     
     func loadCurrentUserTeam() async {
         guard let user = Auth.auth().currentUser else {
+            stopListening()
             return
         }
         
@@ -234,7 +250,9 @@ class TeamManager: ObservableObject {
             let userDoc = try await db.collection("users").document(user.uid).getDocument()
             
             guard let teamId = userDoc.data()?["teamId"] as? String else {
+                currentTeam = nil
                 isLoading = false
+                stopListening()
                 return
             }
             
@@ -243,6 +261,12 @@ class TeamManager: ObservableObject {
             
             if teamDoc.exists {
                 currentTeam = try teamDoc.data(as: Team.self)
+                // Iniciar listeners después de cargar el equipo
+                startListening(userId: user.uid, teamId: teamId)
+            } else {
+                // Si el equipo no existe, limpiar
+                currentTeam = nil
+                stopListening()
             }
             
             isLoading = false
@@ -251,6 +275,84 @@ class TeamManager: ObservableObject {
             isLoading = false
             errorMessage = error.localizedDescription
         }
+    }
+    
+    // MARK: - Real-time Listeners
+    
+    func startListening(userId: String, teamId: String) {
+        // Detener listeners anteriores si existen
+        stopListening()
+        
+        print("👂 [TeamManager] Iniciando listeners para usuario: \(userId), equipo: \(teamId)")
+        
+        // Listener para cambios en el documento del usuario
+        userListener = db.collection("users").document(userId)
+            .addSnapshotListener { [weak self] documentSnapshot, error in
+                Task { @MainActor in
+                    guard let self = self else { return }
+                    
+                    if let error = error {
+                        print("❌ [TeamManager] Error en listener de usuario: \(error.localizedDescription)")
+                        return
+                    }
+                    
+                    guard let document = documentSnapshot, document.exists else {
+                        print("⚠️ [TeamManager] Documento de usuario no existe")
+                        self.currentTeam = nil
+                        self.stopListening()
+                        return
+                    }
+                    
+                    let data = document.data()
+                    let userTeamId = data?["teamId"] as? String
+                    
+                    // Si el teamId se eliminó o cambió, limpiar el equipo
+                    if userTeamId == nil || userTeamId != teamId {
+                        print("🔄 [TeamManager] teamId eliminado o cambiado, limpiando equipo")
+                        self.currentTeam = nil
+                        self.stopListening()
+                        NotificationCenter.default.post(name: NSNotification.Name("TeamDeleted"), object: nil)
+                    }
+                }
+            }
+        
+        // Listener para cambios en el documento del equipo
+        teamListener = db.collection(teamsCollection).document(teamId)
+            .addSnapshotListener { [weak self] documentSnapshot, error in
+                Task { @MainActor in
+                    guard let self = self else { return }
+                    
+                    if let error = error {
+                        print("❌ [TeamManager] Error en listener de equipo: \(error.localizedDescription)")
+                        return
+                    }
+                    
+                    guard let document = documentSnapshot, document.exists else {
+                        print("🔄 [TeamManager] Equipo eliminado, limpiando...")
+                        self.currentTeam = nil
+                        self.stopListening()
+                        NotificationCenter.default.post(name: NSNotification.Name("TeamDeleted"), object: nil)
+                        return
+                    }
+                    
+                    // Actualizar el equipo si existe
+                    do {
+                        let team = try document.data(as: Team.self)
+                        self.currentTeam = team
+                        print("🔄 [TeamManager] Equipo actualizado desde listener")
+                    } catch {
+                        print("❌ [TeamManager] Error al parsear equipo: \(error.localizedDescription)")
+                    }
+                }
+            }
+    }
+    
+    func stopListening() {
+        userListener?.remove()
+        teamListener?.remove()
+        userListener = nil
+        teamListener = nil
+        print("🛑 [TeamManager] Listeners detenidos")
     }
     
     // MARK: - Remove Member
@@ -360,8 +462,9 @@ class TeamManager: ObservableObject {
             try await batch.commit()
             print("✅ [TeamManager] Batch delete completado exitosamente")
             
-            // Limpiar el equipo local
+            // Limpiar el equipo local y detener listeners
             currentTeam = nil
+            stopListening()
             isLoading = false
             
             print("✅ [TeamManager] Equipo eliminado exitosamente")
