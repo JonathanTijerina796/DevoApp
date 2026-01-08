@@ -11,9 +11,10 @@ final class TeamViewModel: ObservableObject {
     @Published var errorMessage = ""
     
     // Dependency Injection - dependemos de abstracciones (protocolos)
-    private let createTeamUseCase: CreateTeamUseCaseProtocol
-    private let joinTeamUseCase: JoinTeamUseCaseProtocol
-    private let getUserTeamUseCase: GetUserTeamUseCaseProtocol
+    // No aisladas al MainActor para permitir inicialización desde cualquier contexto
+    nonisolated(unsafe) private let createTeamUseCase: CreateTeamUseCaseProtocol
+    nonisolated(unsafe) private let joinTeamUseCase: JoinTeamUseCaseProtocol
+    nonisolated(unsafe) private let getUserTeamUseCase: GetUserTeamUseCaseProtocol
     
     nonisolated init(
         createTeamUseCase: CreateTeamUseCaseProtocol,
@@ -34,9 +35,10 @@ final class TeamViewModel: ObservableObject {
         }
         
         let leaderName = user.displayName ?? user.email ?? "Usuario"
-        
         isLoading = true
         errorMessage = ""
+        
+        defer { isLoading = false }
         
         do {
             let team = try await createTeamUseCase.execute(
@@ -44,13 +46,10 @@ final class TeamViewModel: ObservableObject {
                 leaderId: user.uid,
                 leaderName: leaderName
             )
-            
             currentTeam = team
-            isLoading = false
+            try await Task.sleep(nanoseconds: 2_000_000_000) // Delay de 2 segundos
             return team
-            
         } catch {
-            isLoading = false
             errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
             return nil
         }
@@ -67,14 +66,14 @@ final class TeamViewModel: ObservableObject {
         isLoading = true
         errorMessage = ""
         
+        defer { isLoading = false }
+        
         do {
             let team = try await joinTeamUseCase.execute(code: code, userId: user.uid)
             currentTeam = team
-            isLoading = false
+            try await Task.sleep(nanoseconds: 2_000_000_000) // Delay de 2 segundos
             return true
-            
         } catch {
-            isLoading = false
             errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
             return false
         }
@@ -83,18 +82,14 @@ final class TeamViewModel: ObservableObject {
     // MARK: - Load User Team
     
     func loadCurrentUserTeam() async {
-        guard let user = Auth.auth().currentUser else {
-            return
-        }
+        guard let user = Auth.auth().currentUser else { return }
         
         isLoading = true
+        defer { isLoading = false }
         
         do {
             currentTeam = try await getUserTeamUseCase.execute(userId: user.uid)
-            isLoading = false
-            
         } catch {
-            isLoading = false
             errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
         }
     }

@@ -27,9 +27,9 @@ struct ContentView: View {
                 }
             } else {
                 if authManager.isSignedIn {
-                    // Si tiene equipo, mostrar página de inicio
+                    // Si tiene equipo, mostrar TabBar con Home y Perfil
                     if teamManager.currentTeam != nil {
-                        HomeView()
+                        MainTabView()
                             .environmentObject(authManager)
                             .environmentObject(teamManager)
                     } else {
@@ -86,6 +86,11 @@ struct ContentView: View {
             Task {
                 await teamManager.loadCurrentUserTeam()
             }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("TeamDeleted"))) { _ in
+            // Cuando se elimina el equipo, limpiar el equipo local
+            print("📢 [ContentView] Notificación TeamDeleted recibida, limpiando equipo...")
+            teamManager.currentTeam = nil
         }
     }
 }

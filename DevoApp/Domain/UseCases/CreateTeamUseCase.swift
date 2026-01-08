@@ -35,17 +35,13 @@ final class CreateTeamUseCase: CreateTeamUseCaseProtocol {
             throw TeamError.userAlreadyInTeam
         }
         
-        // Generar código único
-        let code = try await teamRepository.generateUniqueTeamCode()
-        
-        // Crear el equipo
+        // Crear el equipo y actualizar perfil del usuario
         let team = try await teamRepository.createTeam(
             name: trimmedName,
             leaderId: leaderId,
             leaderName: leaderName
         )
         
-        // Actualizar el perfil del usuario
         try await userRepository.setUserTeam(
             userId: leaderId,
             teamId: team.id ?? "",

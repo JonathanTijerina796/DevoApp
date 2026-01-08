@@ -113,6 +113,8 @@ struct LeaderDashboardView: View {
     let team: Team
     @State private var showShareCode = false
     @State private var showMembers = false
+    @State private var showDeleteAlert = false
+    @State private var isDeleting = false
     
     var body: some View {
         VStack(spacing: 16) {
@@ -158,6 +160,30 @@ struct LeaderDashboardView: View {
                         .shadow(color: Color.black.opacity(0.05), radius: 8, x: 0, y: 2)
                 )
             }
+            
+            // Botón para eliminar equipo
+            Button {
+                showDeleteAlert = true
+            } label: {
+                HStack {
+                    Image(systemName: "trash.fill")
+                        .font(.system(size: 20))
+                    Text(NSLocalizedString("delete_team", comment: ""))
+                        .font(.headline)
+                    Spacer()
+                    if isDeleting {
+                        ProgressView()
+                            .scaleEffect(0.8)
+                    }
+                }
+                .foregroundStyle(Color.red)
+                .padding(20)
+                .background(
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(Color.red.opacity(0.1))
+                )
+            }
+            .disabled(isDeleting || teamManager.isLoading)
         }
         .sheet(isPresented: $showShareCode) {
             ShareCodeView(teamCode: team.code, teamName: team.name)
@@ -165,6 +191,36 @@ struct LeaderDashboardView: View {
         .sheet(isPresented: $showMembers) {
             TeamMembersView(team: team)
                 .environmentObject(teamManager)
+        }
+        .alert(NSLocalizedString("delete_team", comment: ""), isPresented: $showDeleteAlert) {
+            Button(NSLocalizedString("cancel", comment: ""), role: .cancel) { }
+            Button(NSLocalizedString("delete_team", comment: ""), role: .destructive) {
+                Task {
+                    await deleteTeam()
+                }
+            }
+        } message: {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(NSLocalizedString("delete_team_confirmation", comment: ""))
+                Text(NSLocalizedString("delete_team_warning", comment: ""))
+                    .font(.caption)
+                    .foregroundStyle(Color.secondary)
+            }
+        }
+    }
+    
+    private func deleteTeam() async {
+        isDeleting = true
+        print("🗑️ [LeaderDashboard] Iniciando eliminación del equipo...")
+        
+        let success = await teamManager.deleteTeam()
+        
+        isDeleting = false
+        
+        if success {
+            print("✅ [LeaderDashboard] Equipo eliminado exitosamente")
+        } else {
+            print("❌ [LeaderDashboard] Error al eliminar equipo: \(teamManager.errorMessage)")
         }
     }
 }

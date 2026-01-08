@@ -87,6 +87,12 @@
 "team_id_missing" = "ID del equipo no encontrado";
 "only_leader_can_remove" = "Solo el líder puede eliminar miembros";
 "member_not_in_team" = "El miembro no está en el equipo";
+"delete_team" = "Eliminar Equipo";
+"delete_team_confirmation" = "¿Estás seguro de que deseas eliminar este equipo?";
+"delete_team_warning" = "Esta acción no se puede deshacer. Todos los miembros serán removidos del equipo.";
+"delete_team_success" = "Equipo eliminado exitosamente";
+"delete_team_error" = "Error al eliminar el equipo";
+"only_leader_can_delete" = "Solo el líder puede eliminar el equipo";
 
 // Profile View
 "profile" = "Perfil";
