@@ -29,45 +29,28 @@ final class TeamViewModel: ObservableObject {
     // MARK: - Create Team
     
     func createTeam(name: String) async -> TeamEntity? {
-        print("🎯 [TeamViewModel] createTeam llamado con nombre: \(name)")
-        
         guard let user = Auth.auth().currentUser else {
-            print("❌ [TeamViewModel] Usuario no autenticado")
             errorMessage = NSLocalizedString("user_not_authenticated", comment: "")
             return nil
         }
         
         let leaderName = user.displayName ?? user.email ?? "Usuario"
-        print("👤 [TeamViewModel] Usuario autenticado: \(user.uid), nombre: \(leaderName)")
-        
         isLoading = true
         errorMessage = ""
-        print("🔄 [TeamViewModel] isLoading = true")
+        
+        defer { isLoading = false }
         
         do {
-            print("🚀 [TeamViewModel] Ejecutando CreateTeamUseCase...")
             let team = try await createTeamUseCase.execute(
                 name: name,
                 leaderId: user.uid,
                 leaderName: leaderName
             )
-            
-            print("✅ [TeamViewModel] UseCase completado exitosamente")
-            print("   - Equipo: \(team.name), código: \(team.code), ID: \(team.id ?? "nil")")
-            
             currentTeam = team
-            isLoading = false
-            print("🔄 [TeamViewModel] isLoading = false, currentTeam actualizado")
-            
+            try await Task.sleep(nanoseconds: 2_000_000_000) // Delay de 2 segundos
             return team
-            
         } catch {
-            isLoading = false
             errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
-            print("❌ [TeamViewModel] Error en UseCase:")
-            print("   - Error: \(errorMessage)")
-            print("   - Tipo: \(type(of: error))")
-            print("🔄 [TeamViewModel] isLoading = false después del error")
             return nil
         }
     }
@@ -83,14 +66,14 @@ final class TeamViewModel: ObservableObject {
         isLoading = true
         errorMessage = ""
         
+        defer { isLoading = false }
+        
         do {
             let team = try await joinTeamUseCase.execute(code: code, userId: user.uid)
             currentTeam = team
-            isLoading = false
+            try await Task.sleep(nanoseconds: 2_000_000_000) // Delay de 2 segundos
             return true
-            
         } catch {
-            isLoading = false
             errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
             return false
         }
@@ -99,18 +82,14 @@ final class TeamViewModel: ObservableObject {
     // MARK: - Load User Team
     
     func loadCurrentUserTeam() async {
-        guard let user = Auth.auth().currentUser else {
-            return
-        }
+        guard let user = Auth.auth().currentUser else { return }
         
         isLoading = true
+        defer { isLoading = false }
         
         do {
             currentTeam = try await getUserTeamUseCase.execute(userId: user.uid)
-            isLoading = false
-            
         } catch {
-            isLoading = false
             errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
         }
     }

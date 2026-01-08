@@ -1,9 +1,23 @@
 import SwiftUI
 
+// MARK: - Active Sheet Enum
+// Solución para manejar múltiples sheets sin conflictos
+
+enum ActiveSheet: Identifiable {
+    case leader
+    case member
+    
+    var id: String {
+        switch self {
+        case .leader: return "leader"
+        case .member: return "member"
+        }
+    }
+}
+
 struct TeamSelectionView: View {
     @EnvironmentObject var authManager: AuthenticationManager
-    @State private var showLeaderRegistration = false
-    @State private var showMemberRegistration = false
+    @State private var activeSheet: ActiveSheet?
     
     var body: some View {
         NavigationView {
@@ -40,7 +54,7 @@ struct TeamSelectionView: View {
                             icon: "person.crop.circle.badge.checkmark",
                             color: Color.accentBrand
                         ) {
-                            showLeaderRegistration = true
+                            activeSheet = .leader
                         }
                         
                         // Botón Integrante
@@ -50,7 +64,7 @@ struct TeamSelectionView: View {
                             icon: "person.2.fill",
                             color: Color.secondaryBrand
                         ) {
-                            showMemberRegistration = true
+                            activeSheet = .member
                         }
                     }
                     .padding(.horizontal, 24)
@@ -63,13 +77,19 @@ struct TeamSelectionView: View {
             .background(Color.screenBG.ignoresSafeArea())
             .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
-            .sheet(isPresented: $showLeaderRegistration) {
-                LeaderRegistrationView()
+            .sheet(item: $activeSheet) { sheet in
+                switch sheet {
+                case .leader:
+                    LeaderRegistrationView(
+                        onFinished: { activeSheet = nil }
+                    )
                     .environmentObject(authManager)
-            }
-            .sheet(isPresented: $showMemberRegistration) {
-                MemberRegistrationView()
+                case .member:
+                    MemberRegistrationView(
+                        onFinished: { activeSheet = nil }
+                    )
                     .environmentObject(authManager)
+                }
             }
         }
     }
@@ -127,135 +147,43 @@ private struct TeamOptionCard: View {
 
 struct LeaderRegistrationView: View {
     @EnvironmentObject var authManager: AuthenticationManager
-    @StateObject private var viewModel = DependencyContainer.shared.makeTeamViewModel()
-    @Environment(\.dismiss) var dismiss
+    @StateObject private var viewModel = TeamViewModel(
+        createTeamUseCase: DependencyContainer.shared.createTeamUseCase,
+        joinTeamUseCase: DependencyContainer.shared.joinTeamUseCase,
+        getUserTeamUseCase: DependencyContainer.shared.getUserTeamUseCase
+    )
+    let onFinished: () -> Void
     @State private var teamName: String = ""
     @State private var showAlert = false
     @State private var alertMessage = ""
-    @State private var showSuccessAlert = false
-    @State private var createdTeamCode = ""
     
     var body: some View {
-        NavigationView {
-            ScrollView {
-                VStack(spacing: 24) {
-                    // Header
-                    VStack(spacing: 12) {
-                        Image(systemName: "person.crop.circle.badge.checkmark")
-                            .font(.system(size: 60))
-                            .foregroundStyle(Color.accentBrand)
-                        
-                        Text(NSLocalizedString("register_as_leader", comment: ""))
-                            .font(.system(size: 24, weight: .bold))
-                            .foregroundStyle(Color.primaryText)
-                        
-                        Text(NSLocalizedString("register_leader_description", comment: ""))
-                            .font(.system(size: 16))
-                            .foregroundStyle(Color.secondaryText)
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal, 24)
-                    }
-                    .padding(.top, 40)
-                    
-                    // Campo de nombre del equipo
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text(NSLocalizedString("team_name", comment: ""))
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundStyle(Color.primaryText)
-                        
-                        AppTextField(
-                            text: $teamName,
-                            placeholder: NSLocalizedString("enter_team_name", comment: "")
-                        )
-                    }
-                    .padding(.horizontal, 24)
-                    .padding(.top, 32)
-                    
-                    // Botón de acción
-                    Button {
-                        Task {
-                            await handleRegistration()
-                        }
-                    } label: {
-                        HStack {
-                            if viewModel.isLoading {
-                                ProgressView()
-                                    .scaleEffect(0.8)
-                                    .tint(.white)
-                            }
-                            Text(NSLocalizedString("register_team", comment: ""))
-                                .font(.headline)
-                                .foregroundColor(.white)
-                        }
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 52)
-                        .background(Color.accentBrand)
-                        .cornerRadius(12)
-                    }
-                    .disabled(viewModel.isLoading || teamName.isEmpty)
-                    .padding(.horizontal, 24)
-                    .padding(.top, 16)
-                    
-                    Spacer()
-                }
-            }
-            .background(Color.screenBG.ignoresSafeArea())
-            .navigationTitle("")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button(NSLocalizedString("cancel", comment: "")) {
-                        dismiss()
-                    }
-                    .foregroundStyle(Color.accentBrand)
-                }
-            }
-            .alert("Error", isPresented: $showAlert) {
-                Button("OK") {
-                    viewModel.errorMessage = ""
-                }
-            } message: {
-                Text(alertMessage)
-            }
-            .alert(NSLocalizedString("team_created_success", comment: ""), isPresented: $showSuccessAlert) {
-                Button(NSLocalizedString("continue", comment: "")) {
-                    dismiss()
-                }
-            } message: {
-                Text(NSLocalizedString("team_created_message", comment: "").replacingOccurrences(of: "{code}", with: createdTeamCode))
-            }
-            .onDisappear {
-                // Notificar cuando se cierra la vista para recargar
-                NotificationCenter.default.post(name: NSNotification.Name("TeamUpdated"), object: nil)
-            }
+        RegistrationFormView(
+            icon: "person.crop.circle.badge.checkmark",
+            iconColor: Color.accentBrand,
+            title: NSLocalizedString("register_as_leader", comment: ""),
+            description: NSLocalizedString("register_leader_description", comment: ""),
+            fieldLabel: NSLocalizedString("team_name", comment: ""),
+            fieldPlaceholder: NSLocalizedString("enter_team_name", comment: ""),
+            buttonText: NSLocalizedString("register_team", comment: ""),
+            buttonColor: Color.accentBrand,
+            text: $teamName,
+            isLoading: viewModel.isLoading,
+            onAction: { await handleRegistration() },
+            onCancel: onFinished,
+            showAlert: $showAlert,
+            alertMessage: $alertMessage
+        )
+        .onDisappear {
+            NotificationCenter.default.post(name: NSNotification.Name("TeamUpdated"), object: nil)
         }
     }
     
     private func handleRegistration() async {
-        print("🚀 [LeaderRegistration] Iniciando creación de equipo...")
-        print("📝 [LeaderRegistration] Nombre del equipo: \(teamName)")
-        print("🔄 [LeaderRegistration] isLoading antes: \(viewModel.isLoading)")
-        
-        if let team = await viewModel.createTeam(name: teamName) {
-            print("✅ [LeaderRegistration] Equipo creado exitosamente:")
-            print("   - Nombre: \(team.name)")
-            print("   - Código: \(team.code)")
-            print("   - ID: \(team.id ?? "nil")")
-            print("🔄 [LeaderRegistration] isLoading después: \(viewModel.isLoading)")
-            
-            await MainActor.run {
-                createdTeamCode = team.code
-                showSuccessAlert = true
-            }
-            
-            // Notificar que se creó el equipo (la vista se actualizará automáticamente)
+        if let _ = await viewModel.createTeam(name: teamName) {
             NotificationCenter.default.post(name: NSNotification.Name("TeamCreated"), object: nil)
-            print("📢 [LeaderRegistration] Notificación TeamCreated enviada")
+            await MainActor.run { onFinished() }
         } else {
-            print("❌ [LeaderRegistration] Error al crear equipo")
-            print("   - Error message: \(viewModel.errorMessage)")
-            print("🔄 [LeaderRegistration] isLoading después del error: \(viewModel.isLoading)")
-            
             await MainActor.run {
                 alertMessage = viewModel.errorMessage
                 showAlert = true
@@ -268,28 +196,83 @@ struct LeaderRegistrationView: View {
 
 struct MemberRegistrationView: View {
     @EnvironmentObject var authManager: AuthenticationManager
-    @StateObject private var viewModel = DependencyContainer.shared.makeTeamViewModel()
-    @Environment(\.dismiss) var dismiss
+    @StateObject private var viewModel = TeamViewModel(
+        createTeamUseCase: DependencyContainer.shared.createTeamUseCase,
+        joinTeamUseCase: DependencyContainer.shared.joinTeamUseCase,
+        getUserTeamUseCase: DependencyContainer.shared.getUserTeamUseCase
+    )
+    let onFinished: () -> Void
     @State private var teamCode: String = ""
     @State private var showAlert = false
     @State private var alertMessage = ""
-    @State private var showSuccessAlert = false
+    
+    var body: some View {
+        RegistrationFormView(
+            icon: "person.2.fill",
+            iconColor: Color.secondaryBrand,
+            title: NSLocalizedString("join_team", comment: ""),
+            description: NSLocalizedString("join_team_description", comment: ""),
+            fieldLabel: NSLocalizedString("team_code", comment: ""),
+            fieldPlaceholder: NSLocalizedString("enter_team_code", comment: ""),
+            buttonText: NSLocalizedString("join_team_button", comment: ""),
+            buttonColor: Color.secondaryBrand,
+            text: $teamCode,
+            isLoading: viewModel.isLoading,
+            onAction: { await handleJoinTeam() },
+            onCancel: onFinished,
+            showAlert: $showAlert,
+            alertMessage: $alertMessage
+        )
+        .onDisappear {
+            NotificationCenter.default.post(name: NSNotification.Name("TeamUpdated"), object: nil)
+        }
+    }
+    
+    private func handleJoinTeam() async {
+        if await viewModel.joinTeam(code: teamCode) {
+            NotificationCenter.default.post(name: NSNotification.Name("TeamJoined"), object: nil)
+            await MainActor.run { onFinished() }
+        } else {
+            await MainActor.run {
+                alertMessage = viewModel.errorMessage
+                showAlert = true
+            }
+        }
+    }
+}
+
+// MARK: - Shared Registration Form Component
+
+private struct RegistrationFormView: View {
+    let icon: String
+    let iconColor: Color
+    let title: String
+    let description: String
+    let fieldLabel: String
+    let fieldPlaceholder: String
+    let buttonText: String
+    let buttonColor: Color
+    @Binding var text: String
+    let isLoading: Bool
+    let onAction: () async -> Void
+    let onCancel: () -> Void
+    @Binding var showAlert: Bool
+    @Binding var alertMessage: String
     
     var body: some View {
         NavigationView {
             ScrollView {
                 VStack(spacing: 24) {
-                    // Header
                     VStack(spacing: 12) {
-                        Image(systemName: "person.2.fill")
+                        Image(systemName: icon)
                             .font(.system(size: 60))
-                            .foregroundStyle(Color.secondaryBrand)
+                            .foregroundStyle(iconColor)
                         
-                        Text(NSLocalizedString("join_team", comment: ""))
+                        Text(title)
                             .font(.system(size: 24, weight: .bold))
                             .foregroundStyle(Color.primaryText)
                         
-                        Text(NSLocalizedString("join_team_description", comment: ""))
+                        Text(description)
                             .font(.system(size: 16))
                             .foregroundStyle(Color.secondaryText)
                             .multilineTextAlignment(.center)
@@ -297,44 +280,37 @@ struct MemberRegistrationView: View {
                     }
                     .padding(.top, 40)
                     
-                    // Campo de código del equipo
                     VStack(alignment: .leading, spacing: 8) {
-                        Text(NSLocalizedString("team_code", comment: ""))
+                        Text(fieldLabel)
                             .font(.system(size: 14, weight: .medium))
                             .foregroundStyle(Color.primaryText)
                         
-                        AppTextField(
-                            text: $teamCode,
-                            placeholder: NSLocalizedString("enter_team_code", comment: "")
-                        )
-                        .textInputAutocapitalization(.characters)
-                        .autocorrectionDisabled(true)
+                        AppTextField(text: $text, placeholder: fieldPlaceholder)
+                            .textInputAutocapitalization(icon == "person.2.fill" ? .characters : .none)
+                            .autocorrectionDisabled(true)
                     }
                     .padding(.horizontal, 24)
                     .padding(.top, 32)
                     
-                    // Botón de acción
                     Button {
-                        Task {
-                            await handleJoinTeam()
-                        }
+                        Task { await onAction() }
                     } label: {
                         HStack {
-                            if viewModel.isLoading {
+                            if isLoading {
                                 ProgressView()
                                     .scaleEffect(0.8)
                                     .tint(.white)
                             }
-                            Text(NSLocalizedString("join_team_button", comment: ""))
+                            Text(buttonText)
                                 .font(.headline)
                                 .foregroundColor(.white)
                         }
                         .frame(maxWidth: .infinity)
                         .frame(height: 52)
-                        .background(Color.secondaryBrand)
+                        .background(buttonColor)
                         .cornerRadius(12)
                     }
-                    .disabled(viewModel.isLoading || teamCode.isEmpty)
+                    .disabled(isLoading || text.isEmpty)
                     .padding(.horizontal, 24)
                     .padding(.top, 16)
                     
@@ -347,44 +323,16 @@ struct MemberRegistrationView: View {
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button(NSLocalizedString("cancel", comment: "")) {
-                        dismiss()
+                        onCancel()
                     }
                     .foregroundStyle(Color.accentBrand)
                 }
             }
             .alert("Error", isPresented: $showAlert) {
-                Button("OK") {
-                    viewModel.errorMessage = ""
-                }
+                Button("OK") { }
             } message: {
                 Text(alertMessage)
             }
-            .alert(NSLocalizedString("team_joined_success", comment: ""), isPresented: $showSuccessAlert) {
-                Button(NSLocalizedString("continue", comment: "")) {
-                    dismiss()
-                }
-            } message: {
-                if let team = viewModel.currentTeam {
-                    Text(NSLocalizedString("team_joined_message", comment: "").replacingOccurrences(of: "{name}", with: team.name))
-                }
-            }
-            .onDisappear {
-                // Notificar cuando se cierra la vista para recargar
-                NotificationCenter.default.post(name: NSNotification.Name("TeamUpdated"), object: nil)
-            }
-        }
-    }
-    
-    private func handleJoinTeam() async {
-        let success = await viewModel.joinTeam(code: teamCode)
-        
-        if success {
-            showSuccessAlert = true
-            // Notificar que se unió al equipo
-            NotificationCenter.default.post(name: NSNotification.Name("TeamJoined"), object: nil)
-        } else {
-            alertMessage = viewModel.errorMessage
-            showAlert = true
         }
     }
 }

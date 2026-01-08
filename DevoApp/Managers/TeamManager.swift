@@ -346,6 +346,9 @@ class TeamManager: ObservableObject {
             
             print("✅ [TeamManager] Equipo eliminado exitosamente")
             
+            // Delay de 2 segundos antes de notificar
+            try await Task.sleep(nanoseconds: 2_000_000_000)
+            
             // Notificar que el equipo fue eliminado
             NotificationCenter.default.post(name: NSNotification.Name("TeamDeleted"), object: nil)
             

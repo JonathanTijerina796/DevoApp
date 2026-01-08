@@ -1,0 +1,33 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Reglas para usuarios
+    match /users/{userId} {
+      // Los usuarios pueden leer y escribir su propio documento
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+      
+      // Los usuarios pueden leer otros usuarios (para ver miembros del equipo)
+      // Esto permite queries en la colección users
+      allow read: if request.auth != null;
+    }
+    
+    // Reglas para equipos
+    match /teams/{teamId} {
+      // Cualquier usuario autenticado puede crear un equipo
+      allow create: if request.auth != null;
+      
+      // Los usuarios autenticados pueden leer equipos (para buscar por código)
+      // Esto permite tanto reads directos como queries con whereField
+      allow read: if request.auth != null;
+      
+      // Solo el líder puede actualizar su equipo
+      allow update: if request.auth != null && 
+        request.auth.uid == resource.data.leaderId;
+      
+      // Solo el líder puede eliminar su equipo
+      allow delete: if request.auth != null && 
+        request.auth.uid == resource.data.leaderId;
+    }
+  }
+}
+
