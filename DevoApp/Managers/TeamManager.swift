@@ -33,6 +33,12 @@ class TeamManager: ObservableObject {
             return nil
         }
         
+        // Validación de seguridad: verificar que el leaderId coincida con el usuario autenticado
+        guard leaderId == user.uid else {
+            errorMessage = "Error de seguridad: El leaderId no coincide con el usuario autenticado"
+            return nil
+        }
+        
         // Verificar que el usuario no tenga ya un equipo
         do {
             let userDoc = try await db.collection("users").document(user.uid).getDocument()
@@ -68,9 +74,23 @@ class TeamManager: ObservableObject {
                 updatedAt: now
             )
             
-            // Guardar en Firestore
+            // Guardar en Firestore usando setData para evitar problemas con @DocumentID
             print("💾 [TeamManager] Guardando equipo en Firestore...")
-            let docRef = try await db.collection(teamsCollection).addDocument(from: team)
+            print("🔐 [TeamManager] Usuario autenticado: \(user.uid)")
+            print("🔐 [TeamManager] Email: \(user.email ?? "sin email")")
+            
+            let docRef = db.collection(teamsCollection).document()
+            let teamData: [String: Any] = [
+                "name": team.name,
+                "code": team.code,
+                "leaderId": team.leaderId,
+                "leaderName": team.leaderName,
+                "memberIds": team.memberIds,
+                "createdAt": team.createdAt,
+                "updatedAt": team.updatedAt
+            ]
+            print("📝 [TeamManager] Datos a guardar: \(teamData)")
+            try await docRef.setData(teamData)
             print("💾 [TeamManager] Documento creado con ID: \(docRef.documentID)")
             
             // Verificar que el documento se creó correctamente

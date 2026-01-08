@@ -1,5 +1,6 @@
 import Foundation
 import FirebaseFirestore
+import FirebaseAuth
 
 // MARK: - Team Repository Implementation
 // Implementación concreta del protocolo, usando Firestore
@@ -13,6 +14,15 @@ final class TeamRepository: TeamRepositoryProtocol {
     }
     
     func createTeam(name: String, leaderId: String, leaderName: String) async throws -> TeamEntity {
+        // Validación de seguridad: verificar que el usuario esté autenticado
+        guard let currentUser = Auth.auth().currentUser else {
+            throw NSError(domain: "TeamRepository", code: 401, userInfo: [NSLocalizedDescriptionKey: "Usuario no autenticado"])
+        }
+        
+        // Validación de seguridad: verificar que el leaderId coincida con el usuario autenticado
+        guard leaderId == currentUser.uid else {
+            throw NSError(domain: "TeamRepository", code: 403, userInfo: [NSLocalizedDescriptionKey: "Error de seguridad: El leaderId no coincide con el usuario autenticado"])
+        }
         let code = try await generateUniqueTeamCode()
         let now = Timestamp()
         
@@ -26,7 +36,18 @@ final class TeamRepository: TeamRepositoryProtocol {
             updatedAt: now
         )
         
-        let docRef = try await db.collection(teamsCollection).addDocument(from: teamData)
+        // Usar setData en lugar de addDocument(from:) para evitar problemas con @DocumentID
+        let docRef = db.collection(teamsCollection).document()
+        let data: [String: Any] = [
+            "name": teamData.name,
+            "code": teamData.code,
+            "leaderId": teamData.leaderId,
+            "leaderName": teamData.leaderName,
+            "memberIds": teamData.memberIds,
+            "createdAt": teamData.createdAt,
+            "updatedAt": teamData.updatedAt
+        ]
+        try await docRef.setData(data)
         
         guard !docRef.documentID.isEmpty else {
             throw NSError(domain: "TeamRepository", code: -1, userInfo: [NSLocalizedDescriptionKey: "Error al crear el equipo: ID vacío"])
@@ -64,8 +85,28 @@ final class TeamRepository: TeamRepositoryProtocol {
     }
     
     func updateTeam(_ team: TeamEntity) async throws {
+        // Validación de seguridad: verificar que el usuario esté autenticado
+        guard let currentUser = Auth.auth().currentUser else {
+            throw NSError(domain: "TeamRepository", code: 401, userInfo: [NSLocalizedDescriptionKey: "Usuario no autenticado"])
+        }
+        
         guard let teamId = team.id else {
             throw NSError(domain: "TeamRepository", code: -1, userInfo: [NSLocalizedDescriptionKey: "Team ID is required"])
+        }
+        
+        // Validación de seguridad: obtener el equipo actual para verificar que el usuario es el líder
+        guard let existingTeam = try await getTeamById(teamId) else {
+            throw NSError(domain: "TeamRepository", code: 404, userInfo: [NSLocalizedDescriptionKey: "Equipo no encontrado"])
+        }
+        
+        // Validación de seguridad: solo el líder puede actualizar el equipo
+        guard existingTeam.leaderId == currentUser.uid else {
+            throw NSError(domain: "TeamRepository", code: 403, userInfo: [NSLocalizedDescriptionKey: "Solo el líder puede actualizar el equipo"])
+        }
+        
+        // Validación de seguridad: verificar que el leaderId no haya cambiado
+        guard team.leaderId == existingTeam.leaderId else {
+            throw NSError(domain: "TeamRepository", code: 403, userInfo: [NSLocalizedDescriptionKey: "No se puede cambiar el líder del equipo"])
         }
         
         let teamData = TeamDataModel.fromDomain(team)
