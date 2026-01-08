@@ -101,6 +101,11 @@
 "member_since" = "Miembro desde";
 "sign_out" = "Cerrar Sesión";
 "sign_out_confirmation" = "¿Estás seguro de que deseas cerrar sesión?";
+"view_my_teams" = "Ver mis equipos";
+"change_password" = "Cambiar contraseña";
+"create_team" = "Crear equipo";
+"allow_paste" = "Permitir pegar";
+"activate_reminder" = "Activar recordatorio";
 
 // Home View
 "home" = "Inicio";

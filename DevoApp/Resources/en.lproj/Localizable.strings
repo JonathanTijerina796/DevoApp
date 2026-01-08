@@ -101,6 +101,11 @@
 "member_since" = "Member since";
 "sign_out" = "Sign Out";
 "sign_out_confirmation" = "Are you sure you want to sign out?";
+"view_my_teams" = "View my teams";
+"change_password" = "Change password";
+"create_team" = "Create team";
+"allow_paste" = "Allow paste";
+"activate_reminder" = "Activate reminder";
 
 // Home View
 "home" = "Home";
