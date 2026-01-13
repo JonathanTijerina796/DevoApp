@@ -103,6 +103,7 @@ struct LeaderDashboardView: View {
     @State private var showMembers = false
     @State private var showDeleteAlert = false
     @State private var isDeleting = false
+    @State private var showCreateDevotional = false
     
     var body: some View {
         VStack(spacing: 16) {
@@ -149,6 +150,28 @@ struct LeaderDashboardView: View {
                 )
             }
             
+            // Botón para crear devocional con tema
+            Button {
+                showCreateDevotional = true
+            } label: {
+                HStack {
+                    Image(systemName: "book.fill")
+                        .font(.system(size: 20))
+                    Text(NSLocalizedString("create_devotional", comment: ""))
+                        .font(.headline)
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 14))
+                }
+                .foregroundStyle(Color.primaryText)
+                .padding(20)
+                .background(
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(Color.white)
+                        .shadow(color: Color.black.opacity(0.05), radius: 8, x: 0, y: 2)
+                )
+            }
+            
             // Botón para eliminar equipo
             Button {
                 showDeleteAlert = true
@@ -179,6 +202,11 @@ struct LeaderDashboardView: View {
         .sheet(isPresented: $showMembers) {
             TeamMembersView(team: team)
                 .environmentObject(teamManager)
+        }
+        .sheet(isPresented: $showCreateDevotional) {
+            if let teamId = team.id {
+                CreateDevotionalView(teamId: teamId, teamName: team.name)
+            }
         }
         .alert(NSLocalizedString("delete_team", comment: ""), isPresented: $showDeleteAlert) {
             Button(NSLocalizedString("cancel", comment: ""), role: .cancel) { }

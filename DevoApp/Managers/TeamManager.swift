@@ -4,7 +4,8 @@ import FirebaseAuth
 
 @MainActor
 class TeamManager: ObservableObject {
-    @Published var currentTeam: Team?
+    @Published var currentTeam: Team? // Equipo seleccionado actualmente
+    @Published var allTeams: [Team] = [] // Todos los equipos del usuario
     @Published var isLoading = false
     @Published var errorMessage = ""
     
@@ -12,6 +13,7 @@ class TeamManager: ObservableObject {
     private let teamsCollection = "teams"
     private var userListener: ListenerRegistration?
     private var teamListener: ListenerRegistration?
+    private var selectedTeamId: String?
     
     deinit {
         // Limpiar listeners sin necesidad de main actor
@@ -110,11 +112,38 @@ class TeamManager: ObservableObject {
             var updatedTeam = team
             updatedTeam.id = docRef.documentID
             
-            // Guardar referencia del equipo en el perfil del usuario
+            // Guardar referencia del equipo en el perfil del usuario (nuevo formato con array)
             print("👤 [TeamManager] Actualizando perfil del usuario con teamId: \(docRef.documentID)")
-            try await db.collection("users").document(user.uid).setData([
+            
+            // Obtener equipos existentes
+            let userDoc = try await db.collection("users").document(user.uid).getDocument()
+            var teams: [[String: Any]] = []
+            
+            if let data = userDoc.data(), let teamsData = data["teams"] as? [[String: Any]] {
+                teams = teamsData
+            } else if let existingTeamId = userDoc.data()?["teamId"] as? String,
+                      let roleString = userDoc.data()?["role"] as? String {
+                // Migrar formato antiguo
+                teams = [[
+                    "teamId": existingTeamId,
+                    "role": roleString,
+                    "joinedAt": Timestamp()
+                ]]
+            }
+            
+            // Agregar nuevo equipo
+            teams.append([
                 "teamId": docRef.documentID,
                 "role": "leader",
+                "joinedAt": Timestamp()
+            ])
+            
+            // Guardar con nuevo formato
+            try await db.collection("users").document(user.uid).setData([
+                "teams": teams,
+                "selectedTeamId": docRef.documentID, // Establecer como seleccionado
+                "teamId": docRef.documentID, // Compatibilidad
+                "role": "leader", // Compatibilidad
                 "updatedAt": Timestamp()
             ], merge: true)
             print("👤 [TeamManager] Perfil del usuario actualizado")
@@ -122,14 +151,19 @@ class TeamManager: ObservableObject {
             // Verificar que se guardó correctamente
             print("🔍 [TeamManager] Verificando que se guardó correctamente...")
             let verificationDoc = try await db.collection("users").document(user.uid).getDocument()
-            guard let savedTeamId = verificationDoc.data()?["teamId"] as? String,
-                  savedTeamId == docRef.documentID else {
+            guard let savedData = verificationDoc.data(),
+                  let savedTeams = savedData["teams"] as? [[String: Any]],
+                  savedTeams.contains(where: { ($0["teamId"] as? String) == docRef.documentID }) else {
                 throw NSError(domain: "TeamManager", code: -1, userInfo: [NSLocalizedDescriptionKey: "Error al guardar la referencia del equipo en el perfil del usuario"])
             }
-            print("✅ [TeamManager] Verificación exitosa, teamId guardado: \(savedTeamId)")
+            print("✅ [TeamManager] Verificación exitosa, equipo guardado en array")
             
             isLoading = false
             currentTeam = updatedTeam
+            selectedTeamId = docRef.documentID
+            
+            // Actualizar lista de equipos
+            allTeams.append(updatedTeam)
             
             // Iniciar listeners después de crear el equipo
             startListening(userId: user.uid, teamId: docRef.documentID)
@@ -208,10 +242,35 @@ class TeamManager: ObservableObject {
                 "updatedAt": Timestamp()
             ])
             
-            // Guardar referencia del equipo en el perfil del usuario
-            try await db.collection("users").document(user.uid).setData([
+            // Guardar referencia del equipo en el perfil del usuario (nuevo formato con array)
+            let userDoc = try await db.collection("users").document(user.uid).getDocument()
+            var teams: [[String: Any]] = []
+            
+            if let data = userDoc.data(), let teamsData = data["teams"] as? [[String: Any]] {
+                teams = teamsData
+            } else if let existingTeamId = userDoc.data()?["teamId"] as? String,
+                      let roleString = userDoc.data()?["role"] as? String {
+                // Migrar formato antiguo
+                teams = [[
+                    "teamId": existingTeamId,
+                    "role": roleString,
+                    "joinedAt": Timestamp()
+                ]]
+            }
+            
+            // Agregar nuevo equipo
+            teams.append([
                 "teamId": document.documentID,
                 "role": "member",
+                "joinedAt": Timestamp()
+            ])
+            
+            // Guardar con nuevo formato
+            try await db.collection("users").document(user.uid).setData([
+                "teams": teams,
+                "selectedTeamId": document.documentID, // Establecer como seleccionado
+                "teamId": document.documentID, // Compatibilidad
+                "role": "member", // Compatibilidad
                 "updatedAt": Timestamp()
             ], merge: true)
             
@@ -221,6 +280,17 @@ class TeamManager: ObservableObject {
             updatedTeam.updatedAt = Timestamp()
             updatedTeam.id = document.documentID
             currentTeam = updatedTeam
+            selectedTeamId = document.documentID
+            
+            // Actualizar lista de equipos
+            if !allTeams.contains(where: { $0.id == document.documentID }) {
+                allTeams.append(updatedTeam)
+            } else {
+                // Actualizar equipo existente en la lista
+                if let index = allTeams.firstIndex(where: { $0.id == document.documentID }) {
+                    allTeams[index] = updatedTeam
+                }
+            }
             
             // Iniciar listeners después de unirse al equipo
             startListening(userId: user.uid, teamId: document.documentID)
@@ -235,10 +305,12 @@ class TeamManager: ObservableObject {
         }
     }
     
-    // MARK: - Get Current User's Team
+    // MARK: - Load All User Teams
     
-    func loadCurrentUserTeam() async {
+    func loadAllUserTeams() async {
         guard let user = Auth.auth().currentUser else {
+            allTeams = []
+            currentTeam = nil
             stopListening()
             return
         }
@@ -248,25 +320,104 @@ class TeamManager: ObservableObject {
         do {
             // Obtener información del usuario
             let userDoc = try await db.collection("users").document(user.uid).getDocument()
-            
-            guard let teamId = userDoc.data()?["teamId"] as? String else {
+            guard let data = userDoc.data() else {
+                allTeams = []
                 currentTeam = nil
                 isLoading = false
                 stopListening()
                 return
             }
             
-            // Obtener el equipo
-            let teamDoc = try await db.collection(teamsCollection).document(teamId).getDocument()
+            // Obtener array de equipos (nuevo formato) o migrar desde teamId (formato antiguo)
+            var teamIds: [String] = []
             
-            if teamDoc.exists {
-                currentTeam = try teamDoc.data(as: Team.self)
-                // Iniciar listeners después de cargar el equipo
-                startListening(userId: user.uid, teamId: teamId)
+            if let teamsData = data["teams"] as? [[String: Any]] {
+                // Nuevo formato: array de equipos
+                for teamData in teamsData {
+                    if let teamId = teamData["teamId"] as? String {
+                        teamIds.append(teamId)
+                    }
+                }
+            } else if let teamId = data["teamId"] as? String {
+                // Formato antiguo: migrar
+                teamIds = [teamId]
+            }
+            
+            // Obtener el equipo seleccionado
+            let selectedId = data["selectedTeamId"] as? String ?? teamIds.first
+            
+            // Cargar todos los equipos
+            var loadedTeams: [Team] = []
+            for teamId in teamIds {
+                let teamDoc = try await db.collection(teamsCollection).document(teamId).getDocument()
+                if teamDoc.exists {
+                    if let team = try? teamDoc.data(as: Team.self) {
+                        loadedTeams.append(team)
+                    }
+                }
+            }
+            
+            allTeams = loadedTeams
+            selectedTeamId = selectedId
+            
+            // Establecer el equipo actual
+            if let selectedId = selectedId,
+               let team = loadedTeams.first(where: { $0.id == selectedId }) {
+                currentTeam = team
+                startListening(userId: user.uid, teamId: selectedId)
+            } else if let firstTeam = loadedTeams.first {
+                // Si no hay seleccionado, usar el primero
+                currentTeam = firstTeam
+                selectedTeamId = firstTeam.id
+                startListening(userId: user.uid, teamId: firstTeam.id ?? "")
             } else {
-                // Si el equipo no existe, limpiar
                 currentTeam = nil
                 stopListening()
+            }
+            
+            isLoading = false
+            
+        } catch {
+            isLoading = false
+            errorMessage = error.localizedDescription
+            allTeams = []
+            currentTeam = nil
+        }
+    }
+    
+    // MARK: - Load Current User's Team (compatibilidad hacia atrás)
+    
+    func loadCurrentUserTeam() async {
+        await loadAllUserTeams()
+    }
+    
+    // MARK: - Switch Team
+    
+    func switchTeam(teamId: String) async {
+        guard let user = Auth.auth().currentUser else {
+            return
+        }
+        
+        // Verificar que el equipo existe en la lista de equipos del usuario
+        guard allTeams.contains(where: { $0.id == teamId }) else {
+            errorMessage = "No perteneces a este equipo"
+            return
+        }
+        
+        isLoading = true
+        
+        do {
+            // Actualizar el equipo seleccionado en Firestore
+            try await db.collection("users").document(user.uid).setData([
+                "selectedTeamId": teamId,
+                "updatedAt": Timestamp()
+            ], merge: true)
+            
+            // Actualizar el equipo actual
+            if let team = allTeams.first(where: { $0.id == teamId }) {
+                currentTeam = team
+                selectedTeamId = teamId
+                startListening(userId: user.uid, teamId: teamId)
             }
             
             isLoading = false

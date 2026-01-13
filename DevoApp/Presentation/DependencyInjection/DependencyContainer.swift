@@ -19,12 +19,17 @@ final class DependencyContainer {
         UserRepository(db: Firestore.firestore())
     }()
     
+    lazy var devotionalRepository: DevotionalRepositoryProtocol = {
+        DevotionalRepository(db: Firestore.firestore())
+    }()
+    
     // MARK: - Use Cases
     
     lazy var createTeamUseCase: CreateTeamUseCaseProtocol = {
         CreateTeamUseCase(
             teamRepository: teamRepository,
-            userRepository: userRepository
+            userRepository: userRepository,
+            createDefaultDevotionalUseCase: createDefaultDevotionalUseCase
         )
     }()
     
@@ -42,6 +47,41 @@ final class DependencyContainer {
         )
     }()
     
+    lazy var getUserTeamsUseCase: GetUserTeamsUseCaseProtocol = {
+        GetUserTeamsUseCase(
+            userRepository: userRepository,
+            teamRepository: teamRepository
+        )
+    }()
+    
+    // Devotional Use Cases
+    lazy var getActiveDevotionalUseCase: GetActiveDevotionalUseCaseProtocol = {
+        GetActiveDevotionalUseCase(devotionalRepository: devotionalRepository)
+    }()
+    
+    lazy var sendDevotionalMessageUseCase: SendDevotionalMessageUseCaseProtocol = {
+        SendDevotionalMessageUseCase(devotionalRepository: devotionalRepository)
+    }()
+    
+    lazy var getDevotionalMessagesUseCase: GetDevotionalMessagesUseCaseProtocol = {
+        GetDevotionalMessagesUseCase(devotionalRepository: devotionalRepository)
+    }()
+    
+    lazy var getUserDevotionalMessageUseCase: GetUserDevotionalMessageUseCaseProtocol = {
+        GetUserDevotionalMessageUseCase(devotionalRepository: devotionalRepository)
+    }()
+    
+    lazy var createDefaultDevotionalUseCase: CreateDefaultDevotionalUseCaseProtocol = {
+        CreateDefaultDevotionalUseCase(devotionalRepository: devotionalRepository)
+    }()
+    
+    lazy var createDevotionalUseCase: CreateDevotionalUseCaseProtocol = {
+        CreateDevotionalUseCase(
+            devotionalRepository: devotionalRepository,
+            teamRepository: teamRepository
+        )
+    }()
+    
     // MARK: - ViewModels
     
     func makeTeamViewModel() -> TeamViewModel {
@@ -49,6 +89,16 @@ final class DependencyContainer {
             createTeamUseCase: createTeamUseCase,
             joinTeamUseCase: joinTeamUseCase,
             getUserTeamUseCase: getUserTeamUseCase
+        )
+    }
+    
+    func makeDevotionalViewModel() -> DevotionalViewModel {
+        DevotionalViewModel(
+            getActiveDevotionalUseCase: getActiveDevotionalUseCase,
+            sendMessageUseCase: sendDevotionalMessageUseCase,
+            getMessagesUseCase: getDevotionalMessagesUseCase,
+            getUserMessageUseCase: getUserDevotionalMessageUseCase,
+            devotionalRepository: devotionalRepository
         )
     }
 }

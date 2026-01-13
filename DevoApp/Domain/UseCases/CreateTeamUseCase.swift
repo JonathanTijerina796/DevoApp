@@ -11,11 +11,17 @@ protocol CreateTeamUseCaseProtocol {
 final class CreateTeamUseCase: CreateTeamUseCaseProtocol {
     private let teamRepository: TeamRepositoryProtocol
     private let userRepository: UserRepositoryProtocol
+    private let createDefaultDevotionalUseCase: CreateDefaultDevotionalUseCaseProtocol
     
     // Dependency Injection
-    init(teamRepository: TeamRepositoryProtocol, userRepository: UserRepositoryProtocol) {
+    init(
+        teamRepository: TeamRepositoryProtocol,
+        userRepository: UserRepositoryProtocol,
+        createDefaultDevotionalUseCase: CreateDefaultDevotionalUseCaseProtocol
+    ) {
         self.teamRepository = teamRepository
         self.userRepository = userRepository
+        self.createDefaultDevotionalUseCase = createDefaultDevotionalUseCase
     }
     
     func execute(name: String, leaderId: String, leaderName: String) async throws -> TeamEntity {
@@ -40,11 +46,7 @@ final class CreateTeamUseCase: CreateTeamUseCaseProtocol {
             throw TeamError.teamNameTooLong
         }
         
-        // Verificar que el usuario no tenga ya un equipo
-        if let existingTeamId = try? await userRepository.getUserTeamId(leaderId),
-           !existingTeamId.isEmpty {
-            throw TeamError.userAlreadyInTeam
-        }
+        // Ahora permitimos múltiples equipos, la validación de duplicados se hace en addUserTeam
         
         // Crear el equipo y actualizar perfil del usuario
         let team = try await teamRepository.createTeam(
@@ -53,11 +55,26 @@ final class CreateTeamUseCase: CreateTeamUseCaseProtocol {
             leaderName: leaderName
         )
         
-        try await userRepository.setUserTeam(
+        // Agregar equipo al array de equipos del usuario
+        try await userRepository.addUserTeam(
             userId: leaderId,
             teamId: team.id ?? "",
             role: .leader
         )
+        
+        // Crear devocional por defecto con tema libre
+        if let teamId = team.id {
+            do {
+                _ = try await createDefaultDevotionalUseCase.execute(
+                    teamId: teamId,
+                    teamName: trimmedName
+                )
+            } catch {
+                // Si falla la creación del devocional, no fallar la creación del equipo
+                // Solo loguear el error
+                print("⚠️ Error al crear devocional por defecto: \(error.localizedDescription)")
+            }
+        }
         
         return team
     }

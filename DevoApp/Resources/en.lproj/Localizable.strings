@@ -114,3 +114,35 @@
 "view_team" = "View Team";
 "no_team_yet" = "You don't have a team yet";
 "join_or_create_team" = "Join an existing team or create a new one";
+
+// Team Selector
+"teams" = "Teams";
+"select_team_to_work" = "Select the team you want to work with";
+"change_team" = "Change team";
+"no_teams_available" = "No teams available";
+
+// Devotional
+"no_active_devotional" = "No active devotional";
+"no_devotional_description" = "There is no active devotional for this team at this time";
+"today_instruction" = "Today's instruction";
+"edit" = "Edit";
+"edited" = "Edited";
+"send" = "Send";
+"update" = "Update";
+"message_content_required" = "Message content is required";
+"devotional_not_found" = "Devotional not found";
+"message_not_found" = "Message not found";
+"unauthorized_edit" = "You don't have permission to edit this message";
+"free_topic" = "Free Topic";
+"free_topic_description" = "Share your thoughts, reflections, or what the Lord put in your heart today";
+"free_topic_instruction" = "Free topic - Share your thoughts, reflections, or what the Lord put in your heart today";
+"create_devotional" = "Create Devotional";
+"devotional_info" = "Devotional Information";
+"devotional_title" = "Devotional title";
+"start_date" = "Start date";
+"end_date" = "End date";
+"daily_instructions" = "Daily Instructions";
+"day" = "Day";
+"instruction_placeholder" = "Write the instruction for this day...";
+"passage_optional" = "Bible passage (optional)";
+"create" = "Create";
