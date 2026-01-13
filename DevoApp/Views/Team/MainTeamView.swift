@@ -200,8 +200,9 @@ struct LeaderDashboardView: View {
             ShareCodeView(teamCode: team.code, teamName: team.name)
         }
         .sheet(isPresented: $showMembers) {
-            TeamMembersView(team: team)
+            TeamMembersView()
                 .environmentObject(teamManager)
+                .presentationBackground(Color.screenBG) // iOS 16+ - evita el flash negro
         }
         .sheet(isPresented: $showCreateDevotional) {
             if let teamId = team.id {
@@ -383,52 +384,66 @@ struct ShareCodeView: View {
 
 struct TeamMembersView: View {
     @EnvironmentObject var teamManager: TeamManager
-    let team: Team
     @Environment(\.dismiss) var dismiss
     @State private var members: [TeamMember] = []
     @State private var isLoading = true
     @State private var showRemoveAlert = false
     @State private var memberToRemove: TeamMember?
     
+    // Usar el equipo actual del teamManager en lugar de un parámetro
+    private var team: Team? {
+        teamManager.currentTeam
+    }
+    
     var body: some View {
         NavigationView {
-            ScrollView {
-                VStack(spacing: 16) {
-                    if isLoading {
-                        ProgressView()
-                            .padding()
-                    } else {
-                        // Líder
-                        MemberRow(
-                            name: team.leaderName,
-                            role: NSLocalizedString("leader", comment: ""),
-                            isLeader: true
-                        )
-                        
-                        // Miembros
-                        ForEach(members) { member in
+            ZStack {
+                // Fondo configurado desde el inicio para evitar el flash negro
+                Color.screenBG
+                    .ignoresSafeArea()
+                
+                ScrollView {
+                    VStack(spacing: 16) {
+                        if isLoading {
+                            ProgressView()
+                                .padding()
+                        } else if let team = team {
+                            // Líder
                             MemberRow(
-                                name: member.name,
-                                role: NSLocalizedString("member", comment: ""),
-                                isLeader: false,
-                                onRemove: {
-                                    memberToRemove = member
-                                    showRemoveAlert = true
-                                }
+                                name: team.leaderName,
+                                role: NSLocalizedString("leader", comment: ""),
+                                isLeader: true
                             )
-                        }
-                        
-                        if members.isEmpty {
-                            Text(NSLocalizedString("no_members_yet", comment: ""))
+                            
+                            // Miembros
+                            ForEach(members) { member in
+                                MemberRow(
+                                    name: member.name,
+                                    role: NSLocalizedString("member", comment: ""),
+                                    isLeader: false,
+                                    onRemove: {
+                                        memberToRemove = member
+                                        showRemoveAlert = true
+                                    }
+                                )
+                            }
+                            
+                            if members.isEmpty {
+                                Text(NSLocalizedString("no_members_yet", comment: ""))
+                                    .font(.system(size: 16))
+                                    .foregroundStyle(Color.secondaryText)
+                                    .padding()
+                            }
+                        } else {
+                            Text(NSLocalizedString("team_not_found", comment: ""))
                                 .font(.system(size: 16))
                                 .foregroundStyle(Color.secondaryText)
                                 .padding()
                         }
                     }
+                    .padding()
                 }
-                .padding()
             }
-            .background(Color.screenBG.ignoresSafeArea())
             .navigationTitle(NSLocalizedString("team_members", comment: ""))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -442,12 +457,20 @@ struct TeamMembersView: View {
             .task {
                 await loadMembers()
             }
+            .onChange(of: teamManager.currentTeam?.id) { oldValue, newValue in
+                // Recargar miembros cuando cambia el equipo
+                if newValue != nil {
+                    Task {
+                        await loadMembers()
+                    }
+                }
+            }
             .alert(NSLocalizedString("remove_member", comment: ""), isPresented: $showRemoveAlert) {
                 Button(NSLocalizedString("cancel", comment: ""), role: .cancel) { }
                 Button(NSLocalizedString("remove", comment: ""), role: .destructive) {
-                    if let member = memberToRemove {
+                    if let member = memberToRemove, let team = team {
                         Task {
-                            await removeMember(member)
+                            await removeMember(member, fromTeam: team)
                         }
                     }
                 }
@@ -460,6 +483,11 @@ struct TeamMembersView: View {
     }
     
     private func loadMembers() async {
+        guard let team = teamManager.currentTeam else {
+            isLoading = false
+            return
+        }
+        
         isLoading = true
         
         do {
@@ -489,8 +517,9 @@ struct TeamMembersView: View {
         }
     }
     
-    private func removeMember(_ member: TeamMember) async {
+    private func removeMember(_ member: TeamMember, fromTeam team: Team) async {
         await teamManager.removeMember(memberId: member.id, fromTeam: team)
+        // Recargar miembros después de eliminar
         await loadMembers()
     }
 }

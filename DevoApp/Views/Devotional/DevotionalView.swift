@@ -5,12 +5,23 @@ import SwiftUI
 
 struct DevotionalView: View {
     @StateObject private var viewModel: DevotionalViewModel
+    @EnvironmentObject var teamManager: TeamManager
+    @EnvironmentObject var authManager: AuthenticationManager
     @State private var showMessageComposer = false
+    @State private var showCreateDevotional = false
     let teamId: String
     
     init(teamId: String, viewModel: DevotionalViewModel) {
         self.teamId = teamId
         _viewModel = StateObject(wrappedValue: viewModel)
+    }
+    
+    private var isLeader: Bool {
+        guard let team = teamManager.currentTeam,
+              let userId = authManager.user?.uid else {
+            return false
+        }
+        return team.leaderId == userId
     }
     
     var body: some View {
@@ -86,26 +97,14 @@ struct DevotionalView: View {
                 }
             } else {
                 // No hay devocional activo
-                VStack(spacing: 16) {
-                    NoDevotionalView()
-                    
-                    // Botón de refresh para debug
-                    Button {
-                        Task {
-                            print("🔄 [DevotionalView] Refresh manual presionado")
-                            await viewModel.loadDevotional(teamId: teamId)
-                        }
-                    } label: {
-                        HStack {
-                            Image(systemName: "arrow.clockwise")
-                            Text("Recargar")
-                        }
-                        .padding()
-                        .background(Color.accentBrand)
-                        .foregroundColor(.white)
-                        .cornerRadius(8)
+                NoDevotionalView(
+                    teamId: teamId,
+                    teamName: teamManager.currentTeam?.name ?? "",
+                    isLeader: isLeader,
+                    onCreateTopic: {
+                        showCreateDevotional = true
                     }
-                }
+                )
             }
         }
         .background(Color.screenBG.ignoresSafeArea())
@@ -122,6 +121,43 @@ struct DevotionalView: View {
         .task {
             print("📱 [DevotionalView] Iniciando carga del devocional para teamId: \(teamId)")
             await viewModel.loadDevotional(teamId: teamId)
+        }
+        .onChange(of: teamId) { oldValue, newValue in
+            // Cuando cambia el teamId, resetear y recargar el devocional
+            print("🔄 [DevotionalView] teamId cambió: \(oldValue) -> \(newValue)")
+            Task {
+                // Resetear el estado del ViewModel
+                await viewModel.reset()
+                // Cargar el nuevo devocional
+                await viewModel.loadDevotional(teamId: newValue)
+            }
+        }
+        .onChange(of: teamManager.currentTeam?.id) { oldValue, newValue in
+            // También observar cambios en el equipo actual del TeamManager
+            if let newTeamId = newValue, newTeamId != teamId {
+                print("🔄 [DevotionalView] currentTeam cambió: \(oldValue ?? "nil") -> \(newValue ?? "nil")")
+                Task {
+                    // Resetear el estado del ViewModel
+                    await viewModel.reset()
+                    // Cargar el nuevo devocional
+                    await viewModel.loadDevotional(teamId: newTeamId)
+                }
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("TeamSwitched"))) { notification in
+            let notificationTeamId = notification.userInfo?["teamId"] as? String
+            print("📢 [DevotionalView] Notificación TeamSwitched recibida")
+            print("   TeamId en notificación: \(notificationTeamId ?? "ninguno")")
+            print("   TeamId de esta vista: \(teamId)")
+            
+            // Si el teamId de la notificación coincide con el de esta vista, recargar
+            if let notificationTeamId = notificationTeamId, notificationTeamId == teamId {
+                Task {
+                    print("🔄 [DevotionalView] Recargando devocional después de cambio de equipo para teamId: \(teamId)")
+                    await viewModel.reset()
+                    await viewModel.loadDevotional(teamId: teamId)
+                }
+            }
         }
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("DevotionalCreated"))) { notification in
             let notificationTeamId = notification.userInfo?["teamId"] as? String
@@ -142,6 +178,11 @@ struct DevotionalView: View {
         .onAppear {
             print("👁️ [DevotionalView] Vista apareció, teamId: \(teamId)")
             print("   Devocional actual: \(viewModel.devotional?.title ?? "ninguno")")
+        }
+        .sheet(isPresented: $showCreateDevotional) {
+            if let team = teamManager.currentTeam, let teamId = team.id {
+                CreateDevotionalView(teamId: teamId, teamName: team.name)
+            }
         }
     }
 }
@@ -403,23 +444,92 @@ struct FreeTopicView: View {
 // MARK: - No Devotional View
 
 struct NoDevotionalView: View {
+    let teamId: String
+    let teamName: String
+    let isLeader: Bool
+    let onCreateTopic: () -> Void
+    
     var body: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "book.fill")
-                .font(.system(size: 50))
-                .foregroundStyle(Color.secondaryText)
-            
-            Text(NSLocalizedString("no_active_devotional", comment: ""))
-                .font(.system(size: 18, weight: .semibold))
-                .foregroundStyle(Color.primaryText)
-            
-            Text(NSLocalizedString("no_devotional_description", comment: ""))
-                .font(.system(size: 14))
-                .foregroundStyle(Color.secondaryText)
-                .multilineTextAlignment(.center)
+        ScrollView {
+            VStack(spacing: 24) {
+                Image(systemName: "book.fill")
+                    .font(.system(size: 50))
+                    .foregroundStyle(Color.secondaryText)
+                    .padding(.top, 40)
+                
+                Text(NSLocalizedString("no_active_devotional", comment: ""))
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(Color.primaryText)
+                
+                Text(NSLocalizedString("no_devotional_description", comment: ""))
+                    .font(.system(size: 14))
+                    .foregroundStyle(Color.secondaryText)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 32)
+                
+                // Solo mostrar botones si es líder
+                if isLeader {
+                    VStack(spacing: 16) {
+                        // Opción para crear tema
+                        Button {
+                            onCreateTopic()
+                        } label: {
+                            HStack {
+                                Image(systemName: "plus.circle.fill")
+                                    .font(.system(size: 20))
+                                Text("Add New Topic")
+                                    .font(.system(size: 16, weight: .semibold))
+                            }
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(Color.accentBrand)
+                            .cornerRadius(12)
+                        }
+                        
+                        // Opción para usar tema libre
+                        Button {
+                            // Crear devocional con tema libre
+                            Task {
+                                await createFreeTopicDevotional()
+                            }
+                        } label: {
+                            HStack {
+                                Image(systemName: "sparkles")
+                                    .font(.system(size: 20))
+                                Text("Use Free Topic")
+                                    .font(.system(size: 16, weight: .semibold))
+                            }
+                            .foregroundColor(.accentBrand)
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(Color.accentBrand.opacity(0.1))
+                            .cornerRadius(12)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .stroke(Color.accentBrand, lineWidth: 1)
+                            )
+                        }
+                    }
+                    .padding(.horizontal, 24)
+                    .padding(.top, 32)
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .padding()
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding()
+    }
+    
+    private func createFreeTopicDevotional() async {
+        // Crear devocional por defecto con tema libre
+        do {
+            let useCase = DependencyContainer.shared.createDefaultDevotionalUseCase
+            _ = try await useCase.execute(teamId: teamId, teamName: teamName)
+            // Notificar que se creó un devocional
+            NotificationCenter.default.post(name: NSNotification.Name("DevotionalCreated"), object: nil)
+        } catch {
+            print("Error al crear devocional de tema libre: \(error.localizedDescription)")
+        }
     }
 }
 

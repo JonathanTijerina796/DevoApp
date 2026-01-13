@@ -17,6 +17,8 @@ enum ActiveSheet: Identifiable {
 
 struct TeamSelectionView: View {
     @EnvironmentObject var authManager: AuthenticationManager
+    @EnvironmentObject var teamManager: TeamManager
+    @Environment(\.dismiss) private var dismiss
     @State private var activeSheet: ActiveSheet?
     
     var body: some View {
@@ -81,14 +83,41 @@ struct TeamSelectionView: View {
                 switch sheet {
                 case .leader:
                     LeaderRegistrationView(
-                        onFinished: { activeSheet = nil }
+                        onFinished: { 
+                            activeSheet = nil
+                            // Cerrar el TeamSelectionView completo cuando se crea el equipo
+                            // Esto solo funcionará si TeamSelectionView está presentado como sheet
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                                dismiss()
+                            }
+                        }
                     )
                     .environmentObject(authManager)
+                    .environmentObject(teamManager)
                 case .member:
                     MemberRegistrationView(
-                        onFinished: { activeSheet = nil }
+                        onFinished: { 
+                            activeSheet = nil
+                            // Cerrar el TeamSelectionView completo cuando se une a un equipo
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                                dismiss()
+                            }
+                        }
                     )
                     .environmentObject(authManager)
+                }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("TeamCreated"))) { _ in
+                // Cerrar automáticamente cuando se crea el equipo
+                // Esto es un respaldo en caso de que onFinished no se llame correctamente
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    dismiss()
+                }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("TeamJoined"))) { _ in
+                // Cerrar automáticamente cuando se une a un equipo
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    dismiss()
                 }
             }
         }
@@ -147,6 +176,7 @@ private struct TeamOptionCard: View {
 
 struct LeaderRegistrationView: View {
     @EnvironmentObject var authManager: AuthenticationManager
+    @EnvironmentObject var teamManager: TeamManager
     @StateObject private var viewModel = TeamViewModel(
         createTeamUseCase: DependencyContainer.shared.createTeamUseCase,
         joinTeamUseCase: DependencyContainer.shared.joinTeamUseCase,
@@ -180,8 +210,34 @@ struct LeaderRegistrationView: View {
     }
     
     private func handleRegistration() async {
-        if let _ = await viewModel.createTeam(name: teamName) {
+        if await viewModel.createTeam(name: teamName) != nil {
+            // Notificar que se creó el equipo
             NotificationCenter.default.post(name: NSNotification.Name("TeamCreated"), object: nil)
+            
+            // Recargar equipos en el TeamManager para asegurar que se actualice el estado
+            await teamManager.loadAllUserTeams()
+            
+            // Esperar a que el estado se actualice completamente
+            // Verificar que el equipo se haya cargado correctamente
+            var attempts = 0
+            while teamManager.currentTeam == nil && attempts < 15 {
+                try? await Task.sleep(nanoseconds: 200_000_000) // 0.2 segundos
+                await teamManager.loadAllUserTeams()
+                attempts += 1
+            }
+            
+            print("✅ [LeaderRegistrationView] Equipo cargado: \(teamManager.currentTeam?.name ?? "ninguno")")
+            print("   Intentos: \(attempts)")
+            
+            // Si después de todos los intentos aún no hay equipo, forzar la actualización
+            if teamManager.currentTeam == nil {
+                print("⚠️ [LeaderRegistrationView] No se pudo cargar el equipo automáticamente, forzando actualización...")
+                // Intentar una vez más con más tiempo
+                try? await Task.sleep(nanoseconds: 1_000_000_000) // 1 segundo adicional
+                await teamManager.loadAllUserTeams()
+            }
+            
+            // Cerrar el modal
             await MainActor.run { onFinished() }
         } else {
             await MainActor.run {

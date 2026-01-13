@@ -36,6 +36,7 @@ struct ContentView: View {
                         // Si no tiene equipo, mostrar selección
                         TeamSelectionView()
                             .environmentObject(authManager)
+                            .environmentObject(teamManager)
                             .onAppear {
                                 Task {
                                     await teamManager.loadAllUserTeams()
@@ -46,6 +47,13 @@ struct ContentView: View {
                     LoginView()
                         .environmentObject(authManager)
                 }
+            }
+        }
+        .onChange(of: teamManager.currentTeam) { oldValue, newValue in
+            // Detectar cambios en currentTeam para actualizar la vista
+            print("🔄 [ContentView] currentTeam cambió: \(oldValue?.name ?? "nil") -> \(newValue?.name ?? "nil")")
+            if newValue != nil && oldValue == nil {
+                print("✅ [ContentView] Equipo cargado, navegando a MainTabView")
             }
         }
         .onAppear {
@@ -75,8 +83,10 @@ struct ContentView: View {
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("TeamCreated"))) { _ in
+            print("📢 [ContentView] Notificación TeamCreated recibida, recargando equipos...")
             Task {
                 await teamManager.loadAllUserTeams()
+                print("✅ [ContentView] Equipos recargados, currentTeam: \(teamManager.currentTeam?.name ?? "nil")")
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("TeamJoined"))) { _ in
@@ -90,9 +100,13 @@ struct ContentView: View {
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("TeamDeleted"))) { _ in
-            // Cuando se elimina el equipo, limpiar el equipo local
-            print("📢 [ContentView] Notificación TeamDeleted recibida, limpiando equipo...")
-            teamManager.currentTeam = nil
+            // Cuando se elimina el equipo, recargar equipos para ver si hay otros
+            // No limpiar currentTeam aquí porque loadAllUserTeams() ya lo maneja
+            print("📢 [ContentView] Notificación TeamDeleted recibida, recargando equipos...")
+            Task {
+                await teamManager.loadAllUserTeams()
+                print("✅ [ContentView] Equipos recargados después de eliminar. currentTeam: \(teamManager.currentTeam?.name ?? "ninguno")")
+            }
         }
     }
 }

@@ -34,6 +34,51 @@ struct MainTabView: View {
         .accentColor(Color.accentBrand)
         // Asegurar que el TabBar esté siempre visible
         .toolbar(.visible, for: .tabBar)
+        .onChange(of: teamManager.currentTeam) { oldValue, newValue in
+            // Si cambió de un equipo a otro (no de nil a equipo), asegurar que estemos en Home
+            if oldValue != nil && newValue != nil && oldValue?.id != newValue?.id {
+                print("🔄 [MainTabView] Equipo cambió de \(oldValue?.name ?? "nil") a \(newValue?.name ?? "nil"), navegando a Home...")
+                withAnimation {
+                    selectedTab = 0
+                }
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("TeamCreated"))) { _ in
+            // Cuando se crea un equipo, navegar automáticamente al Home
+            print("📢 [MainTabView] Equipo creado, navegando a Home...")
+            withAnimation {
+                selectedTab = 0
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("TeamJoined"))) { _ in
+            // Cuando se une a un equipo, navegar automáticamente al Home
+            print("📢 [MainTabView] Equipo unido, navegando a Home...")
+            withAnimation {
+                selectedTab = 0
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("TeamDeleted"))) { _ in
+            // Cuando se elimina un equipo, navegar automáticamente al Home
+            // Esto asegura que si hay otros equipos, se muestre el Home con el nuevo equipo
+            print("📢 [MainTabView] Equipo eliminado, navegando a Home...")
+            // Esperar a que loadAllUserTeams() termine y actualice currentTeam
+            Task {
+                // Esperar un poco para que loadAllUserTeams() complete
+                var attempts = 0
+                while teamManager.isLoading && attempts < 10 {
+                    try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 segundos
+                    attempts += 1
+                }
+                // Esperar un poco más para asegurar que currentTeam se haya actualizado
+                try? await Task.sleep(nanoseconds: 200_000_000) // 0.2 segundos adicionales
+                await MainActor.run {
+                    print("✅ [MainTabView] Navegando a Home. currentTeam: \(teamManager.currentTeam?.name ?? "ninguno")")
+                    withAnimation {
+                        selectedTab = 0
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -58,10 +103,12 @@ struct HomeTabView: View {
                     .padding(.bottom, 8)
                     
                     // Vista de devocional (ocupa el resto del espacio)
+                    // Usar .id() para forzar recreación cuando cambia el equipo
                     DevotionalView(
                         teamId: teamId,
                         viewModel: DependencyContainer.shared.makeDevotionalViewModel()
                     )
+                    .id(teamId) // Forzar recreación cuando cambia el teamId
                 } else {
                     // Si no tiene equipo, mostrar opción para unirse
                     ScrollView {
@@ -95,6 +142,7 @@ struct ProfileTabView: View {
     @State private var showSignOutAlert = false
     @State private var allowPaste = true
     @State private var activateReminder = true
+    @State private var showTeamSelection = false
     
     var body: some View {
         NavigationView {
@@ -184,10 +232,8 @@ struct ProfileTabView: View {
                                 Divider().padding(.leading, 60)
                                 
                                 // Crear equipo
-                                NavigationLink {
-                                    TeamSelectionView()
-                                        .environmentObject(authManager)
-                                        // TabBar visible - pantalla principal de selección
+                                Button {
+                                    showTeamSelection = true
                                 } label: {
                                     MenuRowContent(
                                         title: NSLocalizedString("create_team", comment: ""),
@@ -254,6 +300,19 @@ struct ProfileTabView: View {
             .toolbar(.visible, for: .tabBar) // Asegurar que TabBar esté visible al regresar
             .task {
                 await loadUserInfo()
+            }
+            .sheet(isPresented: $showTeamSelection) {
+                TeamSelectionView()
+                    .environmentObject(authManager)
+                    .environmentObject(teamManager)
+                    .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("TeamCreated"))) { _ in
+                        // Cerrar el modal cuando se crea el equipo
+                        showTeamSelection = false
+                    }
+                    .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("TeamJoined"))) { _ in
+                        // Cerrar el modal cuando se une a un equipo
+                        showTeamSelection = false
+                    }
             }
             .alert(NSLocalizedString("sign_out", comment: ""), isPresented: $showSignOutAlert) {
                 Button(NSLocalizedString("cancel", comment: ""), role: .cancel) { }

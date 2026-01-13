@@ -47,6 +47,17 @@ final class DevotionalViewModel: ObservableObject {
         self.devotionalRepository = devotionalRepository
     }
     
+    // MARK: - Reset
+    
+    func reset() async {
+        devotional = nil
+        messages = []
+        currentDay = 1
+        userMessage = nil
+        isLoading = false
+        errorMessage = ""
+    }
+    
     // MARK: - Load Devotional
     
     func loadDevotional(teamId: String) async {
