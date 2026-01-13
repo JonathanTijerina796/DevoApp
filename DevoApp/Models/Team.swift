@@ -1,7 +1,7 @@
 import Foundation
 import FirebaseFirestore
 
-struct Team: Codable, Identifiable {
+struct Team: Codable, Identifiable, Equatable {
     @DocumentID var id: String?
     var name: String
     var code: String
@@ -27,6 +27,16 @@ struct Team: Codable, Identifiable {
         self.memberIds = memberIds
         self.createdAt = createdAt
         self.updatedAt = updatedAt
+    }
+    
+    // Equatable conformance
+    static func == (lhs: Team, rhs: Team) -> Bool {
+        return lhs.id == rhs.id &&
+               lhs.name == rhs.name &&
+               lhs.code == rhs.code &&
+               lhs.leaderId == rhs.leaderId &&
+               lhs.leaderName == rhs.leaderName &&
+               lhs.memberIds == rhs.memberIds
     }
 }
 

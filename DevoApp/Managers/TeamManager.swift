@@ -363,19 +363,31 @@ class TeamManager: ObservableObject {
             // Establecer el equipo actual
             if let selectedId = selectedId,
                let team = loadedTeams.first(where: { $0.id == selectedId }) {
+                print("✅ [TeamManager] Estableciendo equipo seleccionado: \(team.name) (ID: \(selectedId))")
                 currentTeam = team
+                selectedTeamId = selectedId
                 startListening(userId: user.uid, teamId: selectedId)
             } else if let firstTeam = loadedTeams.first {
                 // Si no hay seleccionado, usar el primero
+                print("✅ [TeamManager] No hay equipo seleccionado, usando el primero: \(firstTeam.name)")
                 currentTeam = firstTeam
                 selectedTeamId = firstTeam.id
+                // Actualizar selectedTeamId en Firestore
+                if let teamId = firstTeam.id {
+                    try? await db.collection("users").document(user.uid).setData([
+                        "selectedTeamId": teamId,
+                        "updatedAt": Timestamp()
+                    ], merge: true)
+                }
                 startListening(userId: user.uid, teamId: firstTeam.id ?? "")
             } else {
+                print("⚠️ [TeamManager] No se encontraron equipos")
                 currentTeam = nil
                 stopListening()
             }
             
             isLoading = false
+            print("🔄 [TeamManager] loadAllUserTeams completado. currentTeam: \(currentTeam?.name ?? "nil"), total equipos: \(allTeams.count)")
             
         } catch {
             isLoading = false
@@ -418,6 +430,10 @@ class TeamManager: ObservableObject {
                 currentTeam = team
                 selectedTeamId = teamId
                 startListening(userId: user.uid, teamId: teamId)
+                
+                // Notificar que se cambió de equipo
+                NotificationCenter.default.post(name: NSNotification.Name("TeamSwitched"), object: nil, userInfo: ["teamId": teamId])
+                print("📢 [TeamManager] Equipo cambiado a: \(team.name) (ID: \(teamId))")
             }
             
             isLoading = false
@@ -455,14 +471,32 @@ class TeamManager: ObservableObject {
                     }
                     
                     let data = document.data()
-                    let userTeamId = data?["teamId"] as? String
                     
-                    // Si el teamId se eliminó o cambió, limpiar el equipo
-                    if userTeamId == nil || userTeamId != teamId {
-                        print("🔄 [TeamManager] teamId eliminado o cambiado, limpiando equipo")
-                        self.currentTeam = nil
+                    // Verificar usando el nuevo formato (teams array)
+                    var userHasTeam = false
+                    if let teamsData = data?["teams"] as? [[String: Any]] {
+                        userHasTeam = teamsData.contains { ($0["teamId"] as? String) == teamId }
+                    } else if let userTeamId = data?["teamId"] as? String {
+                        // Formato antiguo (compatibilidad)
+                        userHasTeam = userTeamId == teamId
+                    }
+                    
+                    // Si el usuario ya no tiene este equipo, recargar equipos
+                    if !userHasTeam {
+                        print("🔄 [TeamManager] Usuario ya no pertenece a este equipo, recargando equipos...")
                         self.stopListening()
+                        // Recargar equipos para actualizar currentTeam automáticamente
+                        await self.loadAllUserTeams()
                         NotificationCenter.default.post(name: NSNotification.Name("TeamDeleted"), object: nil)
+                    } else {
+                        // Si el usuario aún tiene el equipo, verificar si hay cambios en selectedTeamId
+                        let selectedId = data?["selectedTeamId"] as? String
+                        if selectedId != teamId && selectedId != nil {
+                            // El usuario cambió de equipo, recargar para obtener el nuevo equipo
+                            await self.loadAllUserTeams()
+                        }
+                        // Si selectedId es nil pero el usuario tiene el equipo, no hacer nada
+                        // (puede ser que se esté creando el equipo)
                     }
                 }
             }
@@ -479,10 +513,13 @@ class TeamManager: ObservableObject {
                     }
                     
                     guard let document = documentSnapshot, document.exists else {
-                        print("🔄 [TeamManager] Equipo eliminado, limpiando...")
-                        self.currentTeam = nil
+                        print("🔄 [TeamManager] Listener detectó que el equipo fue eliminado, recargando equipos...")
                         self.stopListening()
-                        NotificationCenter.default.post(name: NSNotification.Name("TeamDeleted"), object: nil)
+                        // Recargar equipos para actualizar currentTeam automáticamente
+                        Task { @MainActor in
+                            await self.loadAllUserTeams()
+                            NotificationCenter.default.post(name: NSNotification.Name("TeamDeleted"), object: nil)
+                        }
                         return
                     }
                     
@@ -613,17 +650,21 @@ class TeamManager: ObservableObject {
             try await batch.commit()
             print("✅ [TeamManager] Batch delete completado exitosamente")
             
-            // Limpiar el equipo local y detener listeners
-            currentTeam = nil
+            // Detener listeners del equipo eliminado
             stopListening()
+            
+            // Recargar todos los equipos para actualizar currentTeam automáticamente
+            // Esto evitará mostrar la pantalla de "find your team" si hay otros equipos
+            print("🔄 [TeamManager] Recargando equipos después de eliminar...")
+            await loadAllUserTeams()
+            
             isLoading = false
             
             print("✅ [TeamManager] Equipo eliminado exitosamente")
+            print("   Equipos restantes: \(allTeams.count)")
+            print("   Equipo actual: \(currentTeam?.name ?? "ninguno")")
             
-            // Delay de 2 segundos antes de notificar
-            try await Task.sleep(nanoseconds: 2_000_000_000)
-            
-            // Notificar que el equipo fue eliminado
+            // Notificar que el equipo fue eliminado (después de recargar)
             NotificationCenter.default.post(name: NSNotification.Name("TeamDeleted"), object: nil)
             
             return true
