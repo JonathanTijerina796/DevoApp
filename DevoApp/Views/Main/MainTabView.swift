@@ -47,13 +47,9 @@ struct HomeTabView: View {
     var body: some View {
         NavigationView {
             VStack(spacing: 0) {
-                // Header de bienvenida
-                WelcomeHeaderView()
-                    .padding(.top, 20)
-                
                 // Si tiene equipo, mostrar devocional
                 if let team = teamManager.currentTeam, let teamId = team.id {
-                    // Header con nombre del equipo y flecha desplegable
+                    // Header con nombre del equipo y flecha desplegable (arriba)
                     TeamHeaderWithSelector(team: team) {
                         showTeamSelector = true
                     }
@@ -76,7 +72,6 @@ struct HomeTabView: View {
                 }
             }
             .background(Color.screenBG.ignoresSafeArea())
-            .navigationTitle(NSLocalizedString("home", comment: ""))
             .sheet(isPresented: $showTeamSelector) {
                 TeamSelectorView { teamId in
                     Task {
@@ -86,6 +81,7 @@ struct HomeTabView: View {
                 .environmentObject(teamManager)
             }
         }
+        .navigationBarHidden(true)
     }
 }
 

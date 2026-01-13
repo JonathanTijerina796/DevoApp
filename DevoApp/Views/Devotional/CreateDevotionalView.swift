@@ -116,12 +116,17 @@ struct CreateDevotionalView: View {
         
         if success {
             print("✅ [CreateDevotionalView] Devocional creado, esperando a que Firestore lo guarde...")
+            print("   TeamId usado: \(teamId)")
             // Delay más largo para asegurar que Firestore haya guardado el documento
-            try? await Task.sleep(nanoseconds: 1_000_000_000) // 1 segundo
-            print("📢 [CreateDevotionalView] Enviando notificación DevotionalCreated")
+            try? await Task.sleep(nanoseconds: 1_500_000_000) // 1.5 segundos
+            print("📢 [CreateDevotionalView] Enviando notificación DevotionalCreated con teamId: \(teamId)")
+            // Notificar que se creó un devocional, incluyendo el teamId en el userInfo
+            NotificationCenter.default.post(
+                name: NSNotification.Name("DevotionalCreated"),
+                object: nil,
+                userInfo: ["teamId": teamId]
+            )
             dismiss()
-            // Notificar que se creó un devocional
-            NotificationCenter.default.post(name: NSNotification.Name("DevotionalCreated"), object: nil)
         } else {
             print("❌ [CreateDevotionalView] Error al crear devocional")
         }

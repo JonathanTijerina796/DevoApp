@@ -71,10 +71,10 @@ struct MessageBubble: View {
                     .font(.system(size: 15))
                     .foregroundColor(isCurrentUser ? .white : .primaryText)
                     .padding(.horizontal, 16)
-                    .padding(.vertical, 10)
+                    .padding(.vertical, 12)
                     .background(
                         RoundedRectangle(cornerRadius: 16)
-                            .fill(isCurrentUser ? Color.accentBrand : Color.gray.opacity(0.2))
+                            .fill(isCurrentUser ? Color.green : Color.gray.opacity(0.2))
                     )
                     .contextMenu {
                         if isCurrentUser {
