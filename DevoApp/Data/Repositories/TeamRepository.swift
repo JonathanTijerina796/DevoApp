@@ -141,7 +141,7 @@ final class TeamRepository: TeamRepositoryProtocol {
                 characters.randomElement()!
             })
             
-            let exists = try await checkCodeExists(code)
+            let exists = await checkCodeExists(code)
             if !exists {
                 return code
             }
@@ -152,11 +152,13 @@ final class TeamRepository: TeamRepositoryProtocol {
         return String(timestamp.suffix(codeLength)).uppercased()
     }
     
-    func checkCodeExists(_ code: String) async throws -> Bool {
-        let querySnapshot = try await db.collection(teamsCollection)
+    func checkCodeExists(_ code: String) async -> Bool {
+        guard let querySnapshot = try? await db.collection(teamsCollection)
             .whereField("code", isEqualTo: code.uppercased())
             .limit(to: 1)
-            .getDocuments()
+            .getDocuments() else {
+            return false
+        }
         
         return !querySnapshot.documents.isEmpty
     }

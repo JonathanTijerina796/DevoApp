@@ -114,3 +114,35 @@
 "view_team" = "Ver Equipo";
 "no_team_yet" = "Aún no tienes un equipo";
 "join_or_create_team" = "Únete a un equipo existente o crea uno nuevo";
+
+// Team Selector
+"teams" = "Equipos";
+"select_team_to_work" = "Selecciona el equipo en el que quieres trabajar";
+"change_team" = "Cambiar equipo";
+"no_teams_available" = "No hay equipos disponibles";
+
+// Devotional
+"no_active_devotional" = "No hay devocional activo";
+"no_devotional_description" = "No hay un devocional activo para este equipo en este momento";
+"today_instruction" = "Instrucción de hoy";
+"edit" = "Editar";
+"edited" = "Editado";
+"send" = "Enviar";
+"update" = "Actualizar";
+"message_content_required" = "El contenido del mensaje es requerido";
+"devotional_not_found" = "Devocional no encontrado";
+"message_not_found" = "Mensaje no encontrado";
+"unauthorized_edit" = "No tienes permiso para editar este mensaje";
+"free_topic" = "Tema Libre";
+"free_topic_description" = "Comparte tus pensamientos, reflexiones o lo que el Señor puso en tu corazón hoy";
+"free_topic_instruction" = "Tema libre - Comparte tus pensamientos, reflexiones o lo que el Señor puso en tu corazón hoy";
+"create_devotional" = "Crear Devocional";
+"devotional_info" = "Información del Devocional";
+"devotional_title" = "Título del devocional";
+"start_date" = "Fecha de inicio";
+"end_date" = "Fecha de fin";
+"daily_instructions" = "Instrucciones Diarias";
+"day" = "Día";
+"instruction_placeholder" = "Escribe la instrucción para este día...";
+"passage_optional" = "Pasaje bíblico (opcional)";
+"create" = "Crear";

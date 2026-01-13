@@ -56,8 +56,8 @@ final class JoinTeamUseCase: JoinTeamUseCaseProtocol {
             updatedAt: Date()
         )
         
-        // Actualizar perfil del usuario
-        try await userRepository.setUserTeam(
+        // Actualizar perfil del usuario - agregar equipo al array
+        try await userRepository.addUserTeam(
             userId: userId,
             teamId: team.id ?? "",
             role: .member

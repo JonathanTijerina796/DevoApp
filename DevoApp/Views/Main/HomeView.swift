@@ -4,33 +4,49 @@ import FirebaseAuth
 struct HomeView: View {
     @EnvironmentObject var authManager: AuthenticationManager
     @EnvironmentObject var teamManager: TeamManager
+    @State private var showTeamSelector = false
     
     var body: some View {
         NavigationView {
-            ScrollView {
-                VStack(spacing: 24) {
-                    // Header de bienvenida
-                    WelcomeHeaderView()
-                        .padding(.top, 20)
+            VStack(spacing: 0) {
+                // Header de bienvenida
+                WelcomeHeaderView()
+                    .padding(.top, 20)
+                
+                // Si tiene equipo, mostrar devocional
+                if let team = teamManager.currentTeam, let teamId = team.id {
+                    // Header con nombre del equipo y flecha desplegable
+                    TeamHeaderWithSelector(team: team) {
+                        showTeamSelector = true
+                    }
+                    .padding(.horizontal, 24)
+                    .padding(.top, 8)
+                    .padding(.bottom, 8)
                     
-                    // Si tiene equipo, mostrar información del equipo
-                    if let team = teamManager.currentTeam {
-                        TeamInfoCard(team: team)
-                            .padding(.horizontal, 24)
-                        
-                        // Acciones rápidas
-                        QuickActionsView(team: team)
-                            .padding(.horizontal, 24)
-                    } else {
-                        // Si no tiene equipo, mostrar opción para unirse
+                    // Vista de devocional (ocupa el resto del espacio)
+                    DevotionalView(
+                        teamId: teamId,
+                        viewModel: DependencyContainer.shared.makeDevotionalViewModel()
+                    )
+                } else {
+                    // Si no tiene equipo, mostrar opción para unirse
+                    ScrollView {
                         NoTeamCard()
                             .padding(.horizontal, 24)
+                            .padding(.top, 20)
                     }
                 }
-                .padding(.bottom, 24)
             }
             .background(Color.screenBG.ignoresSafeArea())
             .navigationTitle(NSLocalizedString("home", comment: ""))
+            .sheet(isPresented: $showTeamSelector) {
+                TeamSelectorView { teamId in
+                    Task {
+                        await teamManager.switchTeam(teamId: teamId)
+                    }
+                }
+                .environmentObject(teamManager)
+            }
         }
     }
 }

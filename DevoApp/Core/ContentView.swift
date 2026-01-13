@@ -38,7 +38,7 @@ struct ContentView: View {
                             .environmentObject(authManager)
                             .onAppear {
                                 Task {
-                                    await teamManager.loadCurrentUserTeam()
+                                    await teamManager.loadAllUserTeams()
                                 }
                             }
                     }
@@ -56,36 +56,37 @@ struct ContentView: View {
                 showSplash = false
             }
             
-            // Cargar equipo cuando el usuario está autenticado
+            // Cargar equipos cuando el usuario está autenticado
             if authManager.isSignedIn {
                 Task {
-                    await teamManager.loadCurrentUserTeam()
+                    await teamManager.loadAllUserTeams()
                 }
             }
         }
         .onChange(of: authManager.isSignedIn) { oldValue, newValue in
             if newValue {
                 Task {
-                    await teamManager.loadCurrentUserTeam()
+                    await teamManager.loadAllUserTeams()
                 }
             } else {
                 teamManager.currentTeam = nil
+                teamManager.allTeams = []
                 teamManager.stopListening()
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("TeamCreated"))) { _ in
             Task {
-                await teamManager.loadCurrentUserTeam()
+                await teamManager.loadAllUserTeams()
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("TeamJoined"))) { _ in
             Task {
-                await teamManager.loadCurrentUserTeam()
+                await teamManager.loadAllUserTeams()
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("TeamUpdated"))) { _ in
             Task {
-                await teamManager.loadCurrentUserTeam()
+                await teamManager.loadAllUserTeams()
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("TeamDeleted"))) { _ in
