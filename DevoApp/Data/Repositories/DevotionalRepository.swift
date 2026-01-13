@@ -23,15 +23,25 @@ final class DevotionalRepository: DevotionalRepositoryProtocol {
         print("   Fecha de hoy: \(today)")
         print("   Timestamp de hoy: \(todayTimestamp)")
         
-        // Primero buscar el más reciente del equipo (más confiable)
-        let recentQuery = try await db.collection(devotionalsCollection)
+        // Buscar todos los devocionales del equipo (sin orderBy para evitar necesidad de índice)
+        let allQuery = try await db.collection(devotionalsCollection)
             .whereField("teamId", isEqualTo: teamId)
-            .order(by: "createdAt", descending: true)
-            .limit(to: 1)
             .getDocuments()
         
-        guard let recentDocument = recentQuery.documents.first else {
+        guard !allQuery.documents.isEmpty else {
             print("⚠️ [DevotionalRepository] No se encontraron devocionales para el equipo")
+            return nil
+        }
+        
+        // Ordenar en memoria por createdAt (más reciente primero)
+        let sortedDocuments = allQuery.documents.sorted { doc1, doc2 in
+            let date1 = (doc1.data()["createdAt"] as? Timestamp)?.dateValue() ?? Date.distantPast
+            let date2 = (doc2.data()["createdAt"] as? Timestamp)?.dateValue() ?? Date.distantPast
+            return date1 > date2
+        }
+        
+        guard let recentDocument = sortedDocuments.first else {
+            print("⚠️ [DevotionalRepository] No se pudo ordenar los documentos")
             return nil
         }
         
