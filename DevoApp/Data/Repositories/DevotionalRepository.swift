@@ -119,13 +119,14 @@ final class DevotionalRepository: DevotionalRepositoryProtocol {
     // MARK: - Messages
     
     func getDevotionalMessages(devotionalId: String, dayNumber: Int) async throws -> [DevotionalMessageEntity] {
+        // Obtener mensajes sin orderBy para evitar necesidad de índice compuesto
         let querySnapshot = try await db.collection(messagesCollection)
             .whereField("devotionalId", isEqualTo: devotionalId)
             .whereField("dayNumber", isEqualTo: dayNumber)
-            .order(by: "createdAt", descending: false)
             .getDocuments()
         
-        return try querySnapshot.documents.map { document in
+        // Mapear y ordenar en memoria
+        let messages = try querySnapshot.documents.map { document -> DevotionalMessageEntity in
             let data = try document.data(as: DevotionalMessageDataModel.self)
             let message = data.toDomain()
             // Actualizar con el ID del documento
@@ -141,17 +142,41 @@ final class DevotionalRepository: DevotionalRepositoryProtocol {
                 isEdited: message.isEdited
             )
         }
+        
+        // Ordenar por createdAt en memoria
+        return messages.sorted { $0.createdAt < $1.createdAt }
     }
     
     func sendMessage(_ message: DevotionalMessageEntity) async throws -> DevotionalMessageEntity {
+        print("💾 [DevotionalRepository] Enviando mensaje...")
+        print("   devotionalId: \(message.devotionalId)")
+        print("   dayNumber: \(message.dayNumber)")
+        print("   userId: \(message.userId)")
+        print("   content: \(message.content.prefix(50))...")
+        
         // Verificar que no exista ya un mensaje del usuario para este día
-        if (try? await getUserMessage(
+        if let existingMessage = try? await getUserMessage(
             devotionalId: message.devotionalId,
             dayNumber: message.dayNumber,
             userId: message.userId
-        )) != nil {
+        ) {
+            print("⚠️ [DevotionalRepository] Mensaje existente encontrado, actualizando...")
+            print("   ID del mensaje existente: \(existingMessage.id ?? "sin ID")")
+            
             // Si existe, actualizar en lugar de crear
-            return try await updateMessage(message)
+            // Usar el ID del mensaje existente
+            let messageToUpdate = DevotionalMessageEntity(
+                id: existingMessage.id,
+                devotionalId: message.devotionalId,
+                dayNumber: message.dayNumber,
+                userId: message.userId,
+                userName: message.userName,
+                content: message.content,
+                createdAt: existingMessage.createdAt,
+                updatedAt: Date(),
+                isEdited: true
+            )
+            return try await updateMessage(messageToUpdate)
         }
         
         let dataModel = DevotionalMessageDataModel.fromDomain(message)
@@ -168,7 +193,13 @@ final class DevotionalRepository: DevotionalRepositoryProtocol {
             "isEdited": dataModel.isEdited
         ]
         
+        print("💾 [DevotionalRepository] Guardando mensaje en Firestore...")
+        print("   Document ID: \(docRef.documentID)")
+        print("   Data: \(data)")
+        
         try await docRef.setData(data)
+        
+        print("✅ [DevotionalRepository] Mensaje guardado exitosamente con ID: \(docRef.documentID)")
         
         return DevotionalMessageEntity(
             id: docRef.documentID,
@@ -185,16 +216,28 @@ final class DevotionalRepository: DevotionalRepositoryProtocol {
     
     func updateMessage(_ message: DevotionalMessageEntity) async throws -> DevotionalMessageEntity {
         guard let messageId = message.id else {
+            print("❌ [DevotionalRepository] Error: Message ID es nil")
             throw NSError(domain: "DevotionalRepository", code: -1, userInfo: [NSLocalizedDescriptionKey: "Message ID is required"])
         }
         
+        print("🔄 [DevotionalRepository] Actualizando mensaje...")
+        print("   messageId: \(messageId)")
+        print("   content: \(message.content.prefix(50))...")
+        
         let dataModel = DevotionalMessageDataModel.fromDomain(message)
         
-        try await db.collection(messagesCollection).document(messageId).updateData([
+        let updateData: [String: Any] = [
             "content": dataModel.content,
             "updatedAt": Timestamp(),
             "isEdited": true
-        ])
+        ]
+        
+        print("💾 [DevotionalRepository] Actualizando documento en Firestore...")
+        print("   Update data: \(updateData)")
+        
+        try await db.collection(messagesCollection).document(messageId).updateData(updateData)
+        
+        print("✅ [DevotionalRepository] Mensaje actualizado exitosamente")
         
         return DevotionalMessageEntity(
             id: messageId,
@@ -239,5 +282,98 @@ final class DevotionalRepository: DevotionalRepositoryProtocol {
     
     func deleteMessage(_ messageId: String) async throws {
         try await db.collection(messagesCollection).document(messageId).delete()
+    }
+    
+    // MARK: - Real-time Listeners
+    
+    func listenToMessages(
+        devotionalId: String,
+        dayNumber: Int,
+        onUpdate: @escaping ([DevotionalMessageEntity]) -> Void
+    ) -> ListenerRegistration {
+        print("👂 [DevotionalRepository] Configurando listener para devotionalId: \(devotionalId), dayNumber: \(dayNumber)")
+        
+        // Usar consulta sin orderBy para evitar necesidad de índice compuesto
+        // Ordenaremos en memoria después de recibir los documentos
+        return db.collection(messagesCollection)
+            .whereField("devotionalId", isEqualTo: devotionalId)
+            .whereField("dayNumber", isEqualTo: dayNumber)
+            .addSnapshotListener { querySnapshot, error in
+                if let error = error {
+                    print("❌ [DevotionalRepository] Error en listener de mensajes: \(error.localizedDescription)")
+                    return
+                }
+                
+                guard let querySnapshot = querySnapshot else {
+                    print("⚠️ [DevotionalRepository] QuerySnapshot es nil")
+                    onUpdate([])
+                    return
+                }
+                
+                // Información de metadata para debugging
+                let isFromCache = querySnapshot.metadata.isFromCache
+                let hasPendingWrites = querySnapshot.metadata.hasPendingWrites
+                
+                print("📄 [DevotionalRepository] Listener recibió \(querySnapshot.documents.count) documentos")
+                print("   isFromCache: \(isFromCache)")
+                print("   hasPendingWrites: \(hasPendingWrites)")
+                
+                // Procesar todos los cambios, incluso los locales
+                // El listener de Firestore maneja la sincronización automáticamente
+                
+                let documents = querySnapshot.documents
+                
+                let unsortedMessages = documents.compactMap { document -> DevotionalMessageEntity? in
+                    do {
+                        // Usar document.documentID directamente para evitar problemas con @DocumentID
+                        let documentId = document.documentID
+                        let documentData = document.data()
+                        
+                        // Parsear manualmente para tener control total
+                        guard let devotionalId = documentData["devotionalId"] as? String,
+                              let dayNumber = documentData["dayNumber"] as? Int,
+                              let userId = documentData["userId"] as? String,
+                              let userName = documentData["userName"] as? String,
+                              let content = documentData["content"] as? String,
+                              let createdAt = documentData["createdAt"] as? Timestamp,
+                              let updatedAt = documentData["updatedAt"] as? Timestamp else {
+                            print("⚠️ [DevotionalRepository] Campos faltantes en documento \(documentId)")
+                            return nil
+                        }
+                        
+                        let isEdited = documentData["isEdited"] as? Bool ?? false
+                        
+                        // Asegurar que el ID nunca sea nil
+                        guard !documentId.isEmpty else {
+                            print("⚠️ [DevotionalRepository] Document ID vacío, saltando mensaje")
+                            return nil
+                        }
+                        
+                        let entity = DevotionalMessageEntity(
+                            id: documentId,
+                            devotionalId: devotionalId,
+                            dayNumber: dayNumber,
+                            userId: userId,
+                            userName: userName,
+                            content: content,
+                            createdAt: createdAt.dateValue(),
+                            updatedAt: updatedAt.dateValue(),
+                            isEdited: isEdited
+                        )
+                        print("   📝 Mensaje [\(documentId)]: \(entity.userName) - \(entity.content.prefix(30))...")
+                        return entity
+                    } catch {
+                        print("❌ [DevotionalRepository] Error al parsear mensaje \(document.documentID): \(error.localizedDescription)")
+                        print("   Document data: \(document.data())")
+                        return nil
+                    }
+                }
+                
+                // Ordenar por createdAt en memoria
+                let messages = unsortedMessages.sorted { $0.createdAt < $1.createdAt }
+                
+                print("📨 [DevotionalRepository] Listener actualizado: \(messages.count) mensajes procesados y ordenados")
+                onUpdate(messages)
+            }
     }
 }

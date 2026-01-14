@@ -1,4 +1,5 @@
 import Foundation
+import FirebaseFirestore
 
 // MARK: - Devotional Repository Protocol
 // Protocolo para acceso a datos de devocionales
@@ -15,4 +16,11 @@ protocol DevotionalRepositoryProtocol {
     func updateMessage(_ message: DevotionalMessageEntity) async throws -> DevotionalMessageEntity
     func getUserMessage(devotionalId: String, dayNumber: Int, userId: String) async throws -> DevotionalMessageEntity?
     func deleteMessage(_ messageId: String) async throws
+    
+    // Listener en tiempo real para mensajes
+    func listenToMessages(
+        devotionalId: String,
+        dayNumber: Int,
+        onUpdate: @escaping ([DevotionalMessageEntity]) -> Void
+    ) -> ListenerRegistration
 }

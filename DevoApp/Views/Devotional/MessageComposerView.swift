@@ -11,6 +11,8 @@ struct MessageComposerView: View {
     
     @State private var content: String = ""
     @State private var isLoading = false
+    @State private var errorMessage: String?
+    @State private var showError = false
     @Environment(\.dismiss) var dismiss
     
     var body: some View {
@@ -62,11 +64,20 @@ struct MessageComposerView: View {
                 Button {
                     Task {
                         isLoading = true
+                        errorMessage = nil
+                        print("📤 [MessageComposerView] Enviando mensaje...")
                         let success = await onSend(content)
                         isLoading = false
                         
+                        print("📤 [MessageComposerView] Resultado: \(success ? "éxito" : "fallo")")
+                        
                         if success {
+                            print("✅ [MessageComposerView] Cerrando modal...")
                             dismiss()
+                        } else {
+                            print("❌ [MessageComposerView] Error al enviar, mostrando alerta")
+                            errorMessage = NSLocalizedString("error_sending_message", comment: "Error al enviar mensaje")
+                            showError = true
                         }
                     }
                 } label: {
@@ -102,6 +113,11 @@ struct MessageComposerView: View {
                 if let existing = existingMessage {
                     content = existing.content
                 }
+            }
+            .alert("Error", isPresented: $showError) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text(errorMessage ?? NSLocalizedString("error_sending_message", comment: "Error al enviar mensaje"))
             }
         }
     }

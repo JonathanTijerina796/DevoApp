@@ -9,27 +9,55 @@ struct DevotionalChatView: View {
     let onEditMessage: (DevotionalMessageEntity) -> Void
     
     var body: some View {
+        let _ = print("🔄 [DevotionalChatView] Renderizando con \(messages.count) mensajes")
+        let _ = print("   IDs: \(messages.compactMap { $0.id })")
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(spacing: 12) {
-                    ForEach(messages) { message in
-                        MessageBubble(
-                            message: message,
-                            isCurrentUser: message.userId == currentUserId,
-                            onEdit: {
-                                onEditMessage(message)
-                            }
-                        )
-                        .id(message.id)
+                    if messages.isEmpty {
+                        VStack(spacing: 8) {
+                            Image(systemName: "message.fill")
+                                .font(.system(size: 40))
+                                .foregroundStyle(Color.secondaryText.opacity(0.5))
+                            Text(NSLocalizedString("no_messages_yet", comment: "No hay mensajes aún"))
+                                .font(.system(size: 14))
+                                .foregroundStyle(Color.secondaryText)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 40)
+                    } else {
+                        ForEach(messages, id: \.id) { message in
+                            MessageBubble(
+                                message: message,
+                                isCurrentUser: message.userId == currentUserId,
+                                onEdit: {
+                                    onEditMessage(message)
+                                }
+                            )
+                            .id(message.id ?? UUID().uuidString)
+                        }
                     }
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 12)
             }
-            .onChange(of: messages.count) { _, _ in
-                if let lastMessage = messages.last {
-                    withAnimation {
-                        proxy.scrollTo(lastMessage.id, anchor: .bottom)
+            .onChange(of: messages.count) { oldCount, newCount in
+                if newCount > oldCount, let lastMessage = messages.last, let messageId = lastMessage.id {
+                    print("📜 [DevotionalChatView] Nuevo mensaje detectado, scrolleando a: \(messageId)")
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                        withAnimation {
+                            proxy.scrollTo(messageId, anchor: .bottom)
+                        }
+                    }
+                }
+            }
+            .onAppear {
+                // Scroll al último mensaje cuando aparece la vista
+                if let lastMessage = messages.last, let messageId = lastMessage.id {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                        withAnimation {
+                            proxy.scrollTo(messageId, anchor: .bottom)
+                        }
                     }
                 }
             }
