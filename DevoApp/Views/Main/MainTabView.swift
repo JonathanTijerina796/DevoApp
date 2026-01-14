@@ -92,8 +92,13 @@ struct HomeTabView: View {
     var body: some View {
         NavigationView {
             VStack(spacing: 0) {
+                // Mostrar loading mientras se cargan los equipos
+                if teamManager.isLoading {
+                    ProgressView()
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
                 // Si tiene equipo, mostrar devocional
-                if let team = teamManager.currentTeam, let teamId = team.id {
+                else if let team = teamManager.currentTeam, let teamId = team.id {
                     // Header con nombre del equipo y flecha desplegable (arriba)
                     TeamHeaderWithSelector(team: team) {
                         showTeamSelector = true

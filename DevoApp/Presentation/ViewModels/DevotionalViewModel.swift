@@ -1,5 +1,6 @@
 import Foundation
 import FirebaseAuth
+import FirebaseFirestore
 
 // MARK: - Devotional ViewModel
 
@@ -18,6 +19,9 @@ final class DevotionalViewModel: ObservableObject {
     nonisolated(unsafe) private let getMessagesUseCase: GetDevotionalMessagesUseCaseProtocol
     nonisolated(unsafe) private let getUserMessageUseCase: GetUserDevotionalMessageUseCaseProtocol
     nonisolated(unsafe) private let devotionalRepository: DevotionalRepositoryProtocol
+    
+    // Listener para mensajes en tiempo real
+    private var messagesListener: ListenerRegistration?
     
     var currentUserId: String? {
         Auth.auth().currentUser?.uid
@@ -47,15 +51,28 @@ final class DevotionalViewModel: ObservableObject {
         self.devotionalRepository = devotionalRepository
     }
     
+    deinit {
+        // Limpiar listener cuando el ViewModel se destruya
+        messagesListener?.remove()
+    }
+    
     // MARK: - Reset
     
     func reset() async {
+        stopListening()
         devotional = nil
         messages = []
         currentDay = 1
         userMessage = nil
         isLoading = false
         errorMessage = ""
+    }
+    
+    // MARK: - Listener Management
+    
+    private func stopListening() {
+        messagesListener?.remove()
+        messagesListener = nil
     }
     
     // MARK: - Load Devotional
@@ -88,7 +105,15 @@ final class DevotionalViewModel: ObservableObject {
     // MARK: - Load Messages
     
     func loadMessages(for day: Int) async {
-        guard let devotionalId = devotional?.id else { return }
+        guard let devotionalId = devotional?.id else {
+            print("⚠️ [DevotionalViewModel] No se puede cargar mensajes: devotionalId es nil")
+            return
+        }
+        
+        print("📥 [DevotionalViewModel] Cargando mensajes para día \(day)...")
+        
+        // Detener listener anterior si existe
+        stopListening()
         
         currentDay = day
         isLoading = true
@@ -96,72 +121,203 @@ final class DevotionalViewModel: ObservableObject {
         defer { isLoading = false }
         
         do {
-            messages = try await getMessagesUseCase.execute(
+            // Cargar mensajes iniciales
+            print("📥 [DevotionalViewModel] Obteniendo mensajes del use case...")
+            let loadedMessages = try await getMessagesUseCase.execute(
                 devotionalId: devotionalId,
                 dayNumber: day
             )
+            print("✅ [DevotionalViewModel] Mensajes cargados: \(loadedMessages.count)")
+            messages = loadedMessages
             
             // Cargar mensaje del usuario actual
+            print("📥 [DevotionalViewModel] Obteniendo mensaje del usuario...")
             userMessage = try await getUserMessageUseCase.execute(
                 devotionalId: devotionalId,
                 dayNumber: day
             )
+            if let userMsg = userMessage {
+                print("✅ [DevotionalViewModel] Mensaje del usuario encontrado: \(userMsg.id ?? "sin ID")")
+            } else {
+                print("ℹ️ [DevotionalViewModel] El usuario no tiene mensaje para este día")
+            }
+            
+            // Iniciar listener en tiempo real
+            print("👂 [DevotionalViewModel] Iniciando listener...")
+            startListening(devotionalId: devotionalId, dayNumber: day)
+            
+            print("✅ [DevotionalViewModel] Carga de mensajes completada. Total: \(messages.count)")
         } catch {
             errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+            print("❌ [DevotionalViewModel] Error al cargar mensajes: \(error.localizedDescription)")
         }
+    }
+    
+    private func startListening(devotionalId: String, dayNumber: Int) {
+        // Detener listener anterior si existe
+        stopListening()
+        
+        print("👂 [DevotionalViewModel] Iniciando listener para devotionalId: \(devotionalId), dayNumber: \(dayNumber)")
+        print("   currentUserId: \(currentUserId ?? "nil")")
+        
+        messagesListener = devotionalRepository.listenToMessages(
+            devotionalId: devotionalId,
+            dayNumber: dayNumber
+        ) { [weak self] updatedMessages in
+            // Asegurar que se ejecute en el hilo principal
+            Task { @MainActor [weak self] in
+                guard let self = self else { 
+                    print("⚠️ [DevotionalViewModel] Self es nil en callback del listener")
+                    return 
+                }
+                print("📨 [DevotionalViewModel] Listener callback recibido: \(updatedMessages.count) mensajes")
+                
+                // Log de IDs de mensajes recibidos
+                let messageIds = updatedMessages.compactMap { $0.id }
+                print("   IDs de mensajes recibidos: \(messageIds)")
+                print("   Contenidos: \(updatedMessages.map { "\($0.userName): \($0.content.prefix(20))" })")
+                
+                // Verificar que estamos en el hilo principal
+                assert(Thread.isMainThread, "Listener debe ejecutarse en el hilo principal")
+                
+                // Actualizar mensajes en el hilo principal
+                self.messages = updatedMessages
+                print("   ✅ Mensajes actualizados en ViewModel. Total: \(self.messages.count)")
+                
+                // Log de IDs después de actualizar
+                let currentIds = self.messages.compactMap { $0.id }
+                print("   IDs actuales en ViewModel: \(currentIds)")
+                
+                // Forzar actualización de la UI
+                self.objectWillChange.send()
+                
+                // Actualizar userMessage si existe
+                if let userId = self.currentUserId {
+                    if let userMsg = updatedMessages.first(where: { $0.userId == userId && $0.dayNumber == dayNumber }) {
+                        print("   ✅ Mensaje del usuario encontrado: \(userMsg.id ?? "sin ID")")
+                        self.userMessage = userMsg
+                    } else {
+                        print("   ⚠️ No se encontró mensaje del usuario en la lista actualizada")
+                        // Si no hay mensaje del usuario en la lista actualizada, verificar si existía antes
+                        if let existingUserMsg = self.userMessage,
+                           !updatedMessages.contains(where: { $0.id == existingUserMsg.id }) {
+                            print("   🗑️ Mensaje del usuario ya no existe, limpiando userMessage")
+                            self.userMessage = nil
+                        }
+                    }
+                } else {
+                    print("   ⚠️ currentUserId es nil")
+                }
+            }
+        }
+        
+        print("✅ [DevotionalViewModel] Listener iniciado correctamente")
     }
     
     // MARK: - Send Message
     
     func sendMessage(_ content: String, day: Int) async -> Bool {
-        guard let devotionalId = devotional?.id else {
-            errorMessage = NSLocalizedString("devotional_not_found", comment: "")
+        // Validar contenido
+        let trimmedContent = content.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedContent.isEmpty else {
+            errorMessage = NSLocalizedString("message_content_required", comment: "")
+            print("❌ [DevotionalViewModel] Contenido vacío")
             return false
         }
+        
+        guard let devotionalId = devotional?.id else {
+            errorMessage = NSLocalizedString("devotional_not_found", comment: "")
+            print("❌ [DevotionalViewModel] No se encontró devocional")
+            return false
+        }
+        
+        print("📤 [DevotionalViewModel] Enviando mensaje...")
+        print("   devotionalId: \(devotionalId)")
+        print("   dayNumber: \(day)")
+        print("   content length: \(trimmedContent.count) caracteres")
+        print("   userMessage existente: \(userMessage != nil ? "Sí" : "No")")
         
         isLoading = true
         errorMessage = ""
         
-        defer { isLoading = false }
+        defer { 
+            isLoading = false
+            print("🔄 [DevotionalViewModel] isLoading = false")
+        }
         
         do {
             // Si ya existe un mensaje del usuario, actualizarlo
             if let existingMessage = userMessage {
-                var updatedMessage = existingMessage
-                updatedMessage = DevotionalMessageEntity(
-                    id: existingMessage.id,
+                print("🔄 [DevotionalViewModel] Actualizando mensaje existente...")
+                print("   ID del mensaje: \(existingMessage.id ?? "sin ID")")
+                
+                guard let messageId = existingMessage.id else {
+                    errorMessage = "Error: ID del mensaje no encontrado"
+                    print("❌ [DevotionalViewModel] ID del mensaje es nil")
+                    return false
+                }
+                
+                let updatedMessage = DevotionalMessageEntity(
+                    id: messageId,
                     devotionalId: existingMessage.devotionalId,
                     dayNumber: existingMessage.dayNumber,
                     userId: existingMessage.userId,
                     userName: existingMessage.userName,
-                    content: content,
+                    content: trimmedContent,
                     createdAt: existingMessage.createdAt,
                     updatedAt: Date(),
                     isEdited: true
                 )
                 
+                // El listener actualizará automáticamente los mensajes
                 let updated = try await devotionalRepository.updateMessage(updatedMessage)
-                userMessage = updated
-                
-                // Actualizar en la lista de mensajes
-                if let index = messages.firstIndex(where: { $0.id == existingMessage.id }) {
-                    messages[index] = updated
-                }
+                print("✅ [DevotionalViewModel] Mensaje actualizado: \(updated.id ?? "sin ID")")
             } else {
-                // Crear nuevo mensaje
+                print("✨ [DevotionalViewModel] Creando nuevo mensaje...")
+                // Crear nuevo mensaje usando el use case (incluye validación)
+                // El listener actualizará automáticamente los mensajes
                 let newMessage = try await sendMessageUseCase.execute(
                     devotionalId: devotionalId,
                     dayNumber: day,
-                    content: content
+                    content: trimmedContent
                 )
+                print("✅ [DevotionalViewModel] Mensaje creado: \(newMessage.id ?? "sin ID")")
                 
+                // Actualizar userMessage inmediatamente
                 userMessage = newMessage
-                messages.append(newMessage)
+                print("   ✅ userMessage actualizado con nuevo mensaje")
             }
             
+            // Esperar un momento para que el listener procese el cambio
+            try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 segundos
+            
+            // Verificar que el mensaje esté en la lista
+            print("🔍 [DevotionalViewModel] Verificando mensajes después de enviar...")
+            print("   Total de mensajes: \(messages.count)")
+            if let sentMessageId = userMessage?.id {
+                let messageExists = messages.contains { $0.id == sentMessageId }
+                print("   Mensaje en lista: \(messageExists ? "Sí" : "No")")
+                
+                // Si no está en la lista, forzar recarga
+                if !messageExists {
+                    print("⚠️ [DevotionalViewModel] Mensaje no está en la lista, recargando...")
+                    await loadMessages(for: day)
+                }
+            }
+            
+            print("✅ [DevotionalViewModel] Mensaje enviado exitosamente")
             return true
         } catch {
-            errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+            let errorDesc = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+            errorMessage = errorDesc
+            print("❌ [DevotionalViewModel] Error al enviar mensaje:")
+            print("   Error: \(errorDesc)")
+            print("   Tipo: \(type(of: error))")
+            if let nsError = error as NSError? {
+                print("   Domain: \(nsError.domain)")
+                print("   Code: \(nsError.code)")
+                print("   UserInfo: \(nsError.userInfo)")
+            }
             return false
         }
     }
