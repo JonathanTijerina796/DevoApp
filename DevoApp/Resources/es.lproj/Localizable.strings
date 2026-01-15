@@ -98,6 +98,8 @@
 "leave_team_confirmation" = "¿Estás seguro de que deseas salir de este equipo?";
 "leader_cannot_leave" = "El líder no puede salir del equipo. Debe eliminarlo.";
 "not_team_member" = "No eres miembro de este equipo";
+"no_messages_yet" = "Aún no hay mensajes";
+"error_sending_message" = "Error al enviar el mensaje";
 
 // Profile View
 "profile" = "Perfil";

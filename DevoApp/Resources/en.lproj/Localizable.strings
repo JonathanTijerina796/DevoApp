@@ -98,6 +98,8 @@
 "leave_team_confirmation" = "Are you sure you want to leave this team?";
 "leader_cannot_leave" = "The leader cannot leave the team. They must delete it.";
 "not_team_member" = "You are not a member of this team";
+"no_messages_yet" = "No messages yet";
+"error_sending_message" = "Error sending message";
 
 // Profile View
 "profile" = "Profile";

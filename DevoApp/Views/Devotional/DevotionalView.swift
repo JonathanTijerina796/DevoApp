@@ -24,6 +24,27 @@ struct DevotionalView: View {
         return team.leaderId == userId
     }
     
+    private func cleanupExpiredDevotionalsIfNeeded() async {
+        // Verificar si ya se ejecutó la limpieza hoy
+        let lastCleanupKey = "lastDevotionalCleanup"
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        
+        if let lastCleanupDate = UserDefaults.standard.object(forKey: lastCleanupKey) as? Date {
+            let lastCleanupDay = calendar.startOfDay(for: lastCleanupDate)
+            if lastCleanupDay == today {
+                // Ya se ejecutó hoy, no hacer nada
+                return
+            }
+        }
+        
+        // Ejecutar limpieza
+        await teamManager.cleanupExpiredDevotionals()
+        
+        // Guardar fecha de última limpieza
+        UserDefaults.standard.set(Date(), forKey: lastCleanupKey)
+    }
+    
     var body: some View {
         ZStack {
             if viewModel.isLoading && viewModel.devotional == nil {
@@ -37,16 +58,31 @@ struct DevotionalView: View {
                         
                         // Instrucción del día o tema libre
                         if let instruction = viewModel.currentInstruction {
-                            DailyInstructionView(instruction: instruction)
+                            // Si la "instrucción" realmente es Tema Libre, mostrar la tarjeta de tema libre (con botón)
+                            // Esto evita que el devocional default bloquee la UI de crear tema.
+                            if instruction.instruction == NSLocalizedString("free_topic_instruction", comment: "") {
+                                FreeTopicView(
+                                    showCreateButton: isLeader,
+                                    onCreateDevotional: { showCreateDevotional = true }
+                                )
                                 .padding(.horizontal, 24)
                                 .padding(.top, 16)
                                 .padding(.bottom, 12)
+                            } else {
+                                DailyInstructionView(instruction: instruction)
+                                    .padding(.horizontal, 24)
+                                    .padding(.top, 16)
+                                    .padding(.bottom, 12)
+                            }
                         } else {
                             // Mostrar "Tema libre" si no hay instrucción específica
-                            FreeTopicView()
-                                .padding(.horizontal, 24)
-                                .padding(.top, 16)
-                                .padding(.bottom, 12)
+                            FreeTopicView(
+                                showCreateButton: isLeader,
+                                onCreateDevotional: { showCreateDevotional = true }
+                            )
+                            .padding(.horizontal, 24)
+                            .padding(.top, 16)
+                            .padding(.bottom, 12)
                         }
                         
                     // Indicador de progreso de días
@@ -120,6 +156,8 @@ struct DevotionalView: View {
         }
         .task {
             print("📱 [DevotionalView] Iniciando carga del devocional para teamId: \(teamId)")
+            // Limpiar devocionales vencidos antes de cargar (solo una vez al día)
+            await cleanupExpiredDevotionalsIfNeeded()
             await viewModel.loadDevotional(teamId: teamId)
         }
         .onChange(of: teamId) { oldValue, newValue in
@@ -421,18 +459,47 @@ struct ProgressSummaryView: View {
 // MARK: - Free Topic View
 
 struct FreeTopicView: View {
+    let showCreateButton: Bool
+    let onCreateDevotional: () -> Void
+    
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(NSLocalizedString("free_topic", comment: ""))
-                .font(.system(size: 18, weight: .bold))
-                .foregroundStyle(Color.accentBrand)
+        VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(NSLocalizedString("free_topic", comment: ""))
+                    .font(.system(size: 18, weight: .bold))
+                    .foregroundStyle(Color.accentBrand)
+                
+                Text(NSLocalizedString("free_topic_description", comment: ""))
+                    .font(.system(size: 16))
+                    .foregroundStyle(Color.primaryText)
+            }
             
-            Text(NSLocalizedString("free_topic_description", comment: ""))
-                .font(.system(size: 16))
-                .foregroundStyle(Color.primaryText)
+            Divider()
+                .padding(.vertical, 4)
+            
+            if showCreateButton {
+                // Botón para crear devocional
+                Button {
+                    onCreateDevotional()
+                } label: {
+                    HStack(spacing: 10) {
+                        Image(systemName: "plus.circle.fill")
+                            .font(.system(size: 18))
+                        Text(NSLocalizedString("create_devotional", comment: ""))
+                            .font(.system(size: 16, weight: .semibold))
+                    }
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
+                    .background(Color.accentBrand)
+                    .cornerRadius(10)
+                    .shadow(color: Color.accentBrand.opacity(0.3), radius: 4, x: 0, y: 2)
+                }
+                .buttonStyle(PlainButtonStyle())
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(16)
+        .padding(20)
         .background(
             RoundedRectangle(cornerRadius: 12)
                 .fill(Color.accentBrand.opacity(0.1))

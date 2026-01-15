@@ -9,8 +9,6 @@ struct DevotionalChatView: View {
     let onEditMessage: (DevotionalMessageEntity) -> Void
     
     var body: some View {
-        let _ = print("🔄 [DevotionalChatView] Renderizando con \(messages.count) mensajes")
-        let _ = print("   IDs: \(messages.compactMap { $0.id })")
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(spacing: 12) {

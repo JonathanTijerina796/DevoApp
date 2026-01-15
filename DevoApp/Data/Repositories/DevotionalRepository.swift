@@ -376,4 +376,123 @@ final class DevotionalRepository: DevotionalRepositoryProtocol {
                 onUpdate(messages)
             }
     }
+    
+    // MARK: - Delete Operations
+    
+    func deleteDevotionalsForTeam(teamId: String) async throws {
+        print("🗑️ [DevotionalRepository] Eliminando devocionales del equipo: \(teamId)")
+        
+        // Obtener todos los devocionales del equipo
+        let devotionalsQuery = try await db.collection(devotionalsCollection)
+            .whereField("teamId", isEqualTo: teamId)
+            .getDocuments()
+        
+        print("   📚 Encontrados \(devotionalsQuery.documents.count) devocionales")
+        
+        // Obtener todos los mensajes de esos devocionales
+        var allMessageIds: [String] = []
+        var devotionalIds: [String] = []
+        
+        for devotionalDoc in devotionalsQuery.documents {
+            let devotionalId = devotionalDoc.documentID
+            devotionalIds.append(devotionalId)
+            
+            // Obtener todos los mensajes de este devocional
+            let messagesQuery = try await db.collection(messagesCollection)
+                .whereField("devotionalId", isEqualTo: devotionalId)
+                .getDocuments()
+            
+            let messageIds = messagesQuery.documents.map { $0.documentID }
+            allMessageIds.append(contentsOf: messageIds)
+        }
+        
+        print("   💬 Encontrados \(allMessageIds.count) mensajes")
+        
+        // Eliminar en batch
+        let batch = db.batch()
+        
+        // Eliminar mensajes
+        for messageId in allMessageIds {
+            let messageRef = db.collection(messagesCollection).document(messageId)
+            batch.deleteDocument(messageRef)
+        }
+        
+        // Eliminar devocionales
+        for devotionalId in devotionalIds {
+            let devotionalRef = db.collection(devotionalsCollection).document(devotionalId)
+            batch.deleteDocument(devotionalRef)
+        }
+        
+        // Ejecutar batch
+        try await batch.commit()
+        
+        print("✅ [DevotionalRepository] Eliminados \(devotionalIds.count) devocionales y \(allMessageIds.count) mensajes")
+    }
+    
+    func deleteExpiredDevotionals() async throws -> Int {
+        print("🗑️ [DevotionalRepository] Buscando devocionales vencidos...")
+        
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        let todayTimestamp = Timestamp(date: today)
+        
+        // Obtener todos los devocionales
+        let allDevotionals = try await db.collection(devotionalsCollection)
+            .getDocuments()
+        
+        var expiredDevotionalIds: [String] = []
+        var allMessageIds: [String] = []
+        
+        // Filtrar devocionales vencidos (endDate < today)
+        for doc in allDevotionals.documents {
+            if let endDate = doc.data()["endDate"] as? Timestamp {
+                let endDateValue = endDate.dateValue()
+                let endDateStart = calendar.startOfDay(for: endDateValue)
+                
+                // Si la fecha de fin ya pasó (más de 1 día después)
+                if endDateStart < today {
+                    let devotionalId = doc.documentID
+                    expiredDevotionalIds.append(devotionalId)
+                    
+                    // Obtener todos los mensajes de este devocional
+                    let messagesQuery = try await db.collection(messagesCollection)
+                        .whereField("devotionalId", isEqualTo: devotionalId)
+                        .getDocuments()
+                    
+                    let messageIds = messagesQuery.documents.map { $0.documentID }
+                    allMessageIds.append(contentsOf: messageIds)
+                }
+            }
+        }
+        
+        print("   📚 Encontrados \(expiredDevotionalIds.count) devocionales vencidos")
+        print("   💬 Encontrados \(allMessageIds.count) mensajes asociados")
+        
+        if expiredDevotionalIds.isEmpty {
+            print("✅ [DevotionalRepository] No hay devocionales vencidos")
+            return 0
+        }
+        
+        // Eliminar en batch
+        let batch = db.batch()
+        
+        // Eliminar mensajes
+        for messageId in allMessageIds {
+            let messageRef = db.collection(messagesCollection).document(messageId)
+            batch.deleteDocument(messageRef)
+        }
+        
+        // Eliminar devocionales
+        for devotionalId in expiredDevotionalIds {
+            let devotionalRef = db.collection(devotionalsCollection).document(devotionalId)
+            batch.deleteDocument(devotionalRef)
+        }
+        
+        // Ejecutar batch
+        try await batch.commit()
+        
+        print("✅ [DevotionalRepository] Eliminados \(expiredDevotionalIds.count) devocionales vencidos y \(allMessageIds.count) mensajes")
+        
+        return expiredDevotionalIds.count
+    }
 }
