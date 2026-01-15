@@ -27,22 +27,11 @@ struct ContentView: View {
                 }
             } else {
                 if authManager.isSignedIn {
-                    // Si tiene equipo, mostrar TabBar con Home y Perfil
-                    if teamManager.currentTeam != nil {
-                        MainTabView()
-                            .environmentObject(authManager)
-                            .environmentObject(teamManager)
-                    } else {
-                        // Si no tiene equipo, mostrar selección
-                        TeamSelectionView()
-                            .environmentObject(authManager)
-                            .environmentObject(teamManager)
-                            .onAppear {
-                                Task {
-                                    await teamManager.loadAllUserTeams()
-                                }
-                            }
-                    }
+                    // Siempre mostrar TabBar con Home y Perfil (aunque no tenga equipo),
+                    // para permitir acceso a Perfil/Settings.
+                    MainTabView()
+                        .environmentObject(authManager)
+                        .environmentObject(teamManager)
                 } else {
                     LoginView()
                         .environmentObject(authManager)
