@@ -245,7 +245,10 @@ struct LeaderDashboardView: View {
 // MARK: - Member Dashboard View
 
 struct MemberDashboardView: View {
+    @EnvironmentObject var teamManager: TeamManager
     let team: Team
+    @State private var showLeaveAlert = false
+    @State private var isLeaving = false
     
     var body: some View {
         VStack(spacing: 16) {
@@ -257,6 +260,30 @@ struct MemberDashboardView: View {
                 .font(.system(size: 16))
                 .foregroundStyle(Color.secondaryText)
                 .multilineTextAlignment(.center)
+            
+            // Botón para salir del equipo
+            Button {
+                showLeaveAlert = true
+            } label: {
+                HStack {
+                    Image(systemName: "rectangle.portrait.and.arrow.right")
+                        .font(.system(size: 18))
+                    Text(NSLocalizedString("leave_team", comment: ""))
+                        .font(.headline)
+                    Spacer()
+                    if isLeaving {
+                        ProgressView()
+                            .scaleEffect(0.8)
+                    }
+                }
+                .foregroundStyle(Color.red)
+                .padding(20)
+                .background(
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(Color.red.opacity(0.1))
+                )
+            }
+            .disabled(isLeaving || teamManager.isLoading)
         }
         .frame(maxWidth: .infinity)
         .padding(24)
@@ -265,6 +292,31 @@ struct MemberDashboardView: View {
                 .fill(Color.white)
                 .shadow(color: Color.black.opacity(0.05), radius: 8, x: 0, y: 2)
         )
+        .alert(NSLocalizedString("leave_team", comment: ""), isPresented: $showLeaveAlert) {
+            Button(NSLocalizedString("cancel", comment: ""), role: .cancel) { }
+            Button(NSLocalizedString("leave", comment: ""), role: .destructive) {
+                Task {
+                    await leaveTeam()
+                }
+            }
+        } message: {
+            Text(NSLocalizedString("leave_team_confirmation", comment: ""))
+        }
+    }
+    
+    private func leaveTeam() async {
+        isLeaving = true
+        print("🚪 [MemberDashboard] Usuario intentando salir del equipo...")
+        
+        let success = await teamManager.leaveTeam()
+        
+        isLeaving = false
+        
+        if success {
+            print("✅ [MemberDashboard] Usuario salió del equipo exitosamente")
+        } else {
+            print("❌ [MemberDashboard] Error al salir del equipo: \(teamManager.errorMessage)")
+        }
     }
 }
 

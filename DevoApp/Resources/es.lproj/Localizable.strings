@@ -93,6 +93,11 @@
 "delete_team_success" = "Equipo eliminado exitosamente";
 "delete_team_error" = "Error al eliminar el equipo";
 "only_leader_can_delete" = "Solo el líder puede eliminar el equipo";
+"leave_team" = "Salir del Equipo";
+"leave" = "Salir";
+"leave_team_confirmation" = "¿Estás seguro de que deseas salir de este equipo?";
+"leader_cannot_leave" = "El líder no puede salir del equipo. Debe eliminarlo.";
+"not_team_member" = "No eres miembro de este equipo";
 
 // Profile View
 "profile" = "Perfil";

@@ -601,6 +601,123 @@ class TeamManager: ObservableObject {
         }
     }
     
+    // MARK: - Leave Team
+    
+    func leaveTeam() async -> Bool {
+        guard let user = Auth.auth().currentUser else {
+            errorMessage = NSLocalizedString("user_not_authenticated", comment: "")
+            return false
+        }
+        
+        guard let team = currentTeam, let teamId = team.id else {
+            errorMessage = NSLocalizedString("team_not_found", comment: "")
+            return false
+        }
+        
+        // Verificar que el usuario no es el líder
+        guard team.leaderId != user.uid else {
+            errorMessage = NSLocalizedString("leader_cannot_leave", comment: "El líder no puede salir del equipo. Debe eliminarlo.")
+            return false
+        }
+        
+        // Verificar que el usuario es miembro del equipo
+        guard team.memberIds.contains(user.uid) else {
+            errorMessage = NSLocalizedString("not_team_member", comment: "")
+            return false
+        }
+        
+        isLoading = true
+        errorMessage = ""
+        
+        print("🚪 [TeamManager] Usuario \(user.uid) saliendo del equipo \(team.name)...")
+        
+        do {
+            // Remover usuario de la lista de miembros del equipo
+            var updatedMemberIds = team.memberIds
+            updatedMemberIds.removeAll { $0 == user.uid }
+            
+            try await db.collection(teamsCollection).document(teamId).updateData([
+                "memberIds": updatedMemberIds,
+                "updatedAt": Timestamp()
+            ])
+            
+            print("✅ [TeamManager] Usuario removido del equipo en Firestore")
+            
+            // Remover referencia del equipo en el perfil del usuario
+            let userDoc = try await db.collection("users").document(user.uid).getDocument()
+            
+            if let data = userDoc.data(), var teams = data["teams"] as? [[String: Any]] {
+                // Remover el equipo del array de teams
+                teams.removeAll { ($0["teamId"] as? String) == teamId }
+                
+                // Si no quedan equipos, limpiar selectedTeamId
+                let updatedData: [String: Any] = [
+                    "teams": teams,
+                    "updatedAt": Timestamp()
+                ]
+                
+                if teams.isEmpty {
+                    // Si no hay más equipos, limpiar selectedTeamId
+                    try await db.collection("users").document(user.uid).setData([
+                        "teams": teams,
+                        "selectedTeamId": FieldValue.delete(),
+                        "teamId": FieldValue.delete(), // Compatibilidad
+                        "role": FieldValue.delete(), // Compatibilidad
+                        "updatedAt": Timestamp()
+                    ], merge: true)
+                } else {
+                    // Si hay otros equipos, actualizar selectedTeamId al primero disponible
+                    if let firstTeamId = teams.first?["teamId"] as? String {
+                        try await db.collection("users").document(user.uid).setData([
+                            "teams": teams,
+                            "selectedTeamId": firstTeamId,
+                            "teamId": firstTeamId, // Compatibilidad
+                            "role": teams.first?["role"] as? String ?? "member", // Compatibilidad
+                            "updatedAt": Timestamp()
+                        ], merge: true)
+                    } else {
+                        try await db.collection("users").document(user.uid).setData(updatedData, merge: true)
+                    }
+                }
+            } else {
+                // Formato antiguo, limpiar campos
+                try await db.collection("users").document(user.uid).updateData([
+                    "teamId": FieldValue.delete(),
+                    "role": FieldValue.delete(),
+                    "updatedAt": Timestamp()
+                ])
+            }
+            
+            print("✅ [TeamManager] Referencia del equipo removida del perfil del usuario")
+            
+            // Detener listeners del equipo
+            stopListening()
+            
+            // Recargar todos los equipos para actualizar currentTeam
+            print("🔄 [TeamManager] Recargando equipos después de salir...")
+            await loadAllUserTeams()
+            
+            isLoading = false
+            
+            print("✅ [TeamManager] Usuario salió del equipo exitosamente")
+            print("   Equipos restantes: \(allTeams.count)")
+            print("   Equipo actual: \(currentTeam?.name ?? "ninguno")")
+            
+            // Notificar que el usuario salió del equipo
+            NotificationCenter.default.post(name: NSNotification.Name("TeamLeft"), object: nil)
+            
+            return true
+            
+        } catch {
+            isLoading = false
+            let errorDesc = error.localizedDescription
+            errorMessage = errorDesc.isEmpty ? "Error desconocido al salir del equipo" : errorDesc
+            print("❌ [TeamManager] Error al salir del equipo:")
+            print("   - Error: \(errorDesc)")
+            return false
+        }
+    }
+    
     // MARK: - Delete Team
     
     func deleteTeam() async -> Bool {
