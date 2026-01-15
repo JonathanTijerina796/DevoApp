@@ -93,6 +93,11 @@
 "delete_team_success" = "Team deleted successfully";
 "delete_team_error" = "Error deleting team";
 "only_leader_can_delete" = "Only the leader can delete the team";
+"leave_team" = "Leave Team";
+"leave" = "Leave";
+"leave_team_confirmation" = "Are you sure you want to leave this team?";
+"leader_cannot_leave" = "The leader cannot leave the team. They must delete it.";
+"not_team_member" = "You are not a member of this team";
 
 // Profile View
 "profile" = "Profile";
