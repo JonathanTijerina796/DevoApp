@@ -14,6 +14,11 @@ class TeamManager: ObservableObject {
     private var userListener: ListenerRegistration?
     private var teamListener: ListenerRegistration?
     private var selectedTeamId: String?
+    private let devotionalRepository: DevotionalRepositoryProtocol
+    
+    init(devotionalRepository: DevotionalRepositoryProtocol = DependencyContainer.shared.devotionalRepository) {
+        self.devotionalRepository = devotionalRepository
+    }
     
     deinit {
         // Limpiar listeners sin necesidad de main actor
@@ -767,6 +772,16 @@ class TeamManager: ObservableObject {
             try await batch.commit()
             print("✅ [TeamManager] Batch delete completado exitosamente")
             
+            // Eliminar devocionales y mensajes del equipo
+            print("🗑️ [TeamManager] Eliminando devocionales y mensajes del equipo...")
+            do {
+                try await devotionalRepository.deleteDevotionalsForTeam(teamId: teamId)
+                print("✅ [TeamManager] Devocionales y mensajes eliminados exitosamente")
+            } catch {
+                print("⚠️ [TeamManager] Error al eliminar devocionales: \(error.localizedDescription)")
+                // No fallar la eliminación del equipo si falla la eliminación de devocionales
+            }
+            
             // Detener listeners del equipo eliminado
             stopListening()
             
@@ -803,6 +818,22 @@ class TeamManager: ObservableObject {
     func refreshTeam() async {
         // Recargar el equipo del usuario actual
         await loadCurrentUserTeam()
+    }
+    
+    // MARK: - Cleanup Expired Devotionals
+    
+    func cleanupExpiredDevotionals() async {
+        print("🧹 [TeamManager] Iniciando limpieza de devocionales vencidos...")
+        do {
+            let deletedCount = try await devotionalRepository.deleteExpiredDevotionals()
+            if deletedCount > 0 {
+                print("✅ [TeamManager] Limpieza completada: \(deletedCount) devocionales eliminados")
+            } else {
+                print("✅ [TeamManager] No hay devocionales vencidos para eliminar")
+            }
+        } catch {
+            print("⚠️ [TeamManager] Error al limpiar devocionales vencidos: \(error.localizedDescription)")
+        }
     }
     
     // MARK: - Generate Unique Team Code

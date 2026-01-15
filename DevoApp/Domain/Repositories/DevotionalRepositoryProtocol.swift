@@ -23,4 +23,8 @@ protocol DevotionalRepositoryProtocol {
         dayNumber: Int,
         onUpdate: @escaping ([DevotionalMessageEntity]) -> Void
     ) -> ListenerRegistration
+    
+    // Eliminación
+    func deleteDevotionalsForTeam(teamId: String) async throws
+    func deleteExpiredDevotionals() async throws -> Int // Retorna cantidad eliminada
 }

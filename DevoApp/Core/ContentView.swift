@@ -75,6 +75,8 @@ struct ContentView: View {
             if newValue {
                 Task {
                     await teamManager.loadAllUserTeams()
+                    // Limpiar devocionales vencidos cuando el usuario inicia sesión
+                    await teamManager.cleanupExpiredDevotionals()
                 }
             } else {
                 teamManager.currentTeam = nil
