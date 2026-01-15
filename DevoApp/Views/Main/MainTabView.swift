@@ -88,6 +88,7 @@ struct HomeTabView: View {
     @EnvironmentObject var authManager: AuthenticationManager
     @EnvironmentObject var teamManager: TeamManager
     @State private var showTeamSelector = false
+    @State private var showTeamSelection = false
     
     var body: some View {
         NavigationView {
@@ -116,10 +117,46 @@ struct HomeTabView: View {
                     .id(teamId) // Forzar recreación cuando cambia el teamId
                 } else {
                     // Si no tiene equipo, mostrar opción para unirse
-                    ScrollView {
-                        NoTeamCard()
-                            .padding(.horizontal, 24)
-                            .padding(.top, 20)
+                    GeometryReader { geo in
+                        ScrollView(showsIndicators: false) {
+                            VStack(spacing: 0) {
+                                // Logo arriba
+                                Image("DevoLogo")
+                                    .resizable()
+                                    .scaledToFit()
+                                    .frame(height: 140)
+                                    .padding(.top, 24)
+                                
+                                Spacer(minLength: 24)
+                                
+                                // Contenido más abajo / centrado visualmente
+                                VStack(spacing: 16) {
+                                    NoTeamCard()
+                                    
+                                    Button {
+                                        showTeamSelection = true
+                                    } label: {
+                                        HStack(spacing: 10) {
+                                            Image(systemName: "person.3.fill")
+                                                .font(.system(size: 18, weight: .semibold))
+                                            Text(NSLocalizedString("find_your_team", comment: ""))
+                                                .font(.system(size: 16, weight: .semibold))
+                                        }
+                                        .foregroundColor(.white)
+                                        .frame(maxWidth: .infinity)
+                                        .padding(.vertical, 14)
+                                        .background(Color.accentBrand)
+                                        .cornerRadius(12)
+                                    }
+                                }
+                                .padding(.horizontal, 24)
+                                
+                                Spacer(minLength: 0)
+                            }
+                            // Asegura altura mínima para que los spacers tengan efecto
+                            .frame(minHeight: geo.size.height)
+                            .padding(.bottom, 24)
+                        }
                     }
                 }
             }
@@ -131,6 +168,11 @@ struct HomeTabView: View {
                     }
                 }
                 .environmentObject(teamManager)
+            }
+            .sheet(isPresented: $showTeamSelection) {
+                TeamSelectionView()
+                    .environmentObject(authManager)
+                    .environmentObject(teamManager)
             }
         }
         .navigationBarHidden(true)
